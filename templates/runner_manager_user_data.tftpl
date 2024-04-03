@@ -1,0 +1,69 @@
+#!/bin/bash -e
+
+# Install additional programs needed by the scripts
+for i in {1..7}
+do
+    echo "Attempt: ---- " $i
+    yum install -y jq && break || sleep 60
+done
+
+# Install gitlab-runner if not installed
+if ! ( rpm -q gitlab-runner >/dev/null )
+then
+    curl --fail --retry 6 -L https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.rpm.sh | bash
+    yum install gitlab-runner-${gitlab_runner_version} -y
+fi
+
+# Install fleeting-plugin-aws if not installed
+if ! ( which fleeting-plugin-aws >/dev/null )
+then
+    curl --fail --retry 6 -L "https://gitlab.com/gitlab-org/fleeting/plugins/aws/-/releases/${fleeting_plugin_aws_version}/downloads/fleeting-plugin-aws-linux-amd64" -o /usr/bin/fleeting-plugin-aws
+    chmod +x /usr/bin/fleeting-plugin-aws
+fi
+
+# Stop the gitlab-runner service until it is configured
+systemctl stop gitlab-runner
+
+# Configure the gitlab-runner
+mkdir -p /etc/gitlab-runner
+cat > /etc/gitlab-runner/config.toml <<- EOF
+
+${runners_config}
+
+EOF
+
+%{ for token in runner_tokens ~}
+
+# fetch Runner authentication token from SSM and validate it
+token=$(aws ssm get-parameters --names "${token.name}" --with-decryption --region "${token.region}" | jq -r ".Parameters | .[0] | .Value")
+
+valid_token=false
+if [[ "$token" != "null" ]]
+then
+    valid_token_response=$(curl -s -o /dev/null -w "%%{response_code}" --request POST -L "${runners_gitlab_url}/api/v4/runners/verify" --form "token=$token" )
+    [[ "$valid_token_response" == "200" ]] && valid_token=true
+fi
+
+if [[ "$valid_token" == "false" ]]
+then
+    echo "Invalid token for runner ${token.name}"
+    exit 1
+fi
+
+# Replace the token in the config.toml
+sed -i.bak s/"${token.name}"/"$token"/g /etc/gitlab-runner/config.toml
+%{ endfor ~}
+
+mkdir -p /etc/systemd/system/gitlab-runner.service.d
+# Set the AWS default region to the region of the instance
+cat > /etc/systemd/system/gitlab-runner.service.d/override.conf <<- EOF
+[Service]
+Environment="AWS_DEFAULT_REGION=${aws_region}"
+EOF
+
+systemctl daemon-reload
+systemctl restart gitlab-runner
+systemctl enable gitlab-runner
+
+# Verify the runner is registered
+gitlab-runner verify

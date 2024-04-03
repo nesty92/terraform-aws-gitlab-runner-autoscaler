@@ -1,0 +1,44 @@
+concurrent = ${maximum_concurrent_jobs}
+check_interval = ${gitlab_check_interval}
+sentry_dsn = "${sentry_dsn}"
+listen_address = "${prometheus_listen_address}"
+
+%{~ for config in runners_autoscaling ~}
+
+[[runners]]
+    name = "${config.name}"
+    url = "${config.url}"
+    token = "${config.token}"
+    shell = "${config.shell}"
+
+    executor = "docker-autoscaler"
+
+    [runners.docker]
+    %{~ for key, value in config.docker ~}
+      ${key} = ${jsonencode(value)}
+    %{~ endfor ~}
+
+    [runners.autoscaler]
+      plugin = "${config.plugin}"
+
+    %{~ for key, value in config.autoscaler ~}
+      ${key} = ${jsonencode(value)}
+    %{~ endfor ~}
+
+      [runners.autoscaler.plugin_config]
+      %{~ for key, value in config.plugin_config ~}
+        ${key} = ${jsonencode(value)}
+      %{~ endfor ~}
+
+      [runners.autoscaler.connector_config]
+      %{~ for key, value in config.connector_config ~}
+        ${key} = ${jsonencode(value)}
+      %{~ endfor ~}
+
+    %{~ for index, policy in config.policy ~}
+      [[runners.autoscaler.policy]]
+      %{~ for key, value in policy ~}
+        ${key} = ${jsonencode(value)}
+      %{~ endfor ~}
+    %{~ endfor ~}
+%{~ endfor ~}

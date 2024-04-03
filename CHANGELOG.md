@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.1.2...1.1.3) (2024-04-03)
+
+
+### Bug Fixes
+
+* Update architecture diagram URL ([f478aa0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/f478aa0a77d6cc787f5178870aceac89a2fa1677))
+
 ## [1.1.2](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.1.1...1.1.2) (2024-04-03)
 
 

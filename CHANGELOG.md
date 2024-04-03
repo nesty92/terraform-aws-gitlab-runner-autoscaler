@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.1.1...1.1.2) (2024-04-03)
+
+
+### Bug Fixes
+
+* Remove unused variables for GitLab Runner registration tokens ([0abcc8d](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/0abcc8daa1c70dc45f92de17565b6c72ed855ae2))
+
 ## [1.1.1](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.1.0...1.1.1) (2024-04-03)
 
 

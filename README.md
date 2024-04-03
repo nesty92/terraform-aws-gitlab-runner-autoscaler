@@ -14,7 +14,7 @@ The Runner Manager is deployed as an EC2 instance and the Runner instances are d
 
 ## License
 
-This module is licensed under the [insert license type]. See the [LICENSE](./LICENSE) file for more details.
+This module is licensed under the Apache License. See the [LICENSE](./LICENSE) file for more details.
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 

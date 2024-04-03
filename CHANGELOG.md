@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.1.0...1.1.1) (2024-04-03)
+
+
+### Bug Fixes
+
+* Add example README ([6ac7073](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/6ac7073f1c63da5896b7d7dbfbf523923efac0de))
+* Update RELEASE_PLEASE_TOKEN in release workflow ([86629e7](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/86629e725bfde51e5adfbb8c3af321a9057bba75))
+
 ## [1.1.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/v1.0.0...1.1.0) (2024-04-03)
 
 

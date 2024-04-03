@@ -8,7 +8,7 @@ This module use a single GitLab Runner Manager instance to manage multiple GitLa
 
 The Runner Manager is deployed as an EC2 instance and the Runner instances are deployed as AWS Spot Instances. The Runner instances are managed by an Auto Scaling Group and are launched using a Launch Template.
 
-[![Architecture Diagram](./docs/architecture.png)](./docs/architecture.png)
+[![Architecture Diagram](https://raw.githubusercontent.com/nesty92/terraform-aws-gitlab-runner-autoscaler/main/docs/architecture.png)](https://raw.githubusercontent.com/nesty92/terraform-aws-gitlab-runner-autoscaler/main/docs/architecture.png)
 *Architecture Diagram - See: [GitLab Runner Autoscaler documentation](https://docs.gitlab.com/runner/runner_autoscale/#gitlab-runner-autoscaler) for more details*
 
 

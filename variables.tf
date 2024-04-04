@@ -502,7 +502,7 @@ variable "runner_instance_amd64" {
     max_lifetime_seconds        = optional(number, null)
     monitoring                  = optional(bool, false)
     name_prefix                 = optional(string)
-    private_address_only        = optional(bool, false)
+    private_address_only        = optional(bool, true)
     block_device_mappings       = optional(map(string), {})
     spot_price                  = optional(string, null)
     ssm_access                  = optional(bool, false)

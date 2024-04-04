@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.4](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.1.3...1.1.4) (2024-04-04)
+
+
+### Bug Fixes
+
+* Use private address only by default on Amd64 instances ([39ba0e0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/39ba0e034462cf1bd9bfbc85dbb883b27bdc0e6a))
+
 ## [1.1.3](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.1.2...1.1.3) (2024-04-03)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.1.4...1.2.0) (2024-05-28)
+
+
+### Features
+
+* Add variables for AMD64 and ARM64 AMI IDs for GitLab Runner instances ([8211ce4](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/8211ce4f8deaabe92ed3707374c5305d60617ce9))
+
 ## [1.1.4](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.1.3...1.1.4) (2024-04-04)
 
 

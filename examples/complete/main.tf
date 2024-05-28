@@ -56,12 +56,12 @@ module "aws-gitlab-runners-spot-autoscaler" {
 
   runner_instance_amd64 = {
     name_prefix = "gitlab-runner-amd64"
-    ami_id      = "ami-01d9aa1626ec9bf85"
+    ami_id      = var.runner_amd64_ami_id
   }
 
   runner_instance_arm64 = {
     name_prefix = "gitlab-runner-arm64"
-    ami_id      = "ami-041df397c99784f9f"
+    ami_id      = var.runner_arm64_ami_id
   }
 }
 

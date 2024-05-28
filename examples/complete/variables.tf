@@ -18,3 +18,13 @@ variable "gitlab_runner_version" {
   description = "The version of the GitLab Runner to install."
   type        = string
 }
+
+variable "runner_amd64_ami_id" {
+  description = "The AMI ID to use for the AMD64 GitLab Runner instances."
+  type        = string
+}
+
+variable "runner_arm64_ami_id" {
+  description = "The AMI ID to use for the ARM64 GitLab Runner instances."
+  type        = string
+}

@@ -33,6 +33,8 @@ No requirements.
 | <a name="input_fleeting_plugin_aws_version"></a> [fleeting\_plugin\_aws\_version](#input\_fleeting\_plugin\_aws\_version) | The version of the AWS Fleeting plugin to install. | `string` | n/a | yes |
 | <a name="input_gitlab_runner_version"></a> [gitlab\_runner\_version](#input\_gitlab\_runner\_version) | The version of the GitLab Runner to install. | `string` | n/a | yes |
 | <a name="input_region"></a> [region](#input\_region) | The AWS region to deploy the GitLab Runner to. | `string` | `"us-west-2"` | no |
+| <a name="input_runner_amd64_ami_id"></a> [runner\_amd64\_ami\_id](#input\_runner\_amd64\_ami\_id) | The AMI ID to use for the AMD64 GitLab Runner instances. | `string` | n/a | yes |
+| <a name="input_runner_arm64_ami_id"></a> [runner\_arm64\_ami\_id](#input\_runner\_arm64\_ami\_id) | The AMI ID to use for the ARM64 GitLab Runner instances. | `string` | n/a | yes |
 
 ## Outputs
 

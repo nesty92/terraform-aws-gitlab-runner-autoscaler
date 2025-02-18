@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.2.0...1.3.0) (2025-02-18)
+
+
+### Features
+
+* Enhance multi-architecture support for GitLab Runner configuration ([010f474](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/010f474756f30667503ec5d76d55a49ff4baa7bb))
+
 ## [1.2.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.1.4...1.2.0) (2024-05-28)
 
 

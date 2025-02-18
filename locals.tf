@@ -11,67 +11,69 @@ locals {
 
   tags = { for k, v in local.tags_merged : k => v if !contains(var.suppressed_tags, k) }
 
+  docker_options_by_arch = {
+    arm64 = { for k, v in var.runner_docker_options_arm64 : k => v if v != null }
+    amd64 = { for k, v in var.runner_docker_options_amd64 : k => v if v != null }
+  }
+
+  autoscaler_options_by_arch = {
+    arm64 = { for k, v in var.runner_autoscaler_options_arm64 : k => v if v != null }
+    amd64 = { for k, v in var.runner_autoscaler_options_amd64 : k => v if v != null }
+  }
+
+  plugin_connector_options_by_arch = {
+    arm64 = { for k, v in var.runner_autoscaler_plugin_connector_options_arm64 : k => v if v != null }
+    amd64 = { for k, v in var.runner_autoscaler_plugin_connector_options_amd64 : k => v if v != null }
+  }
+
+  plugin_options_by_arch = {
+    arm64 = merge(
+      { for k, v in var.runner_autoscaler_plugin_options_arm64 : k => v if v != null },
+      { name = try(aws_autoscaling_group.gitlab_runner_instance["arm64"].name, null) }
+    )
+    amd64 = merge(
+      { for k, v in var.runner_autoscaler_plugin_options_amd64 : k => v if v != null },
+      { name = try(aws_autoscaling_group.gitlab_runner_instance["amd64"].name, null) }
+    )
+  }
+
+  policy_by_arch = {
+    arm64 = [for policy in var.runner_autoscaler_policy_arm64 : { for k, v in policy : k => v if v != null }]
+    amd64 = [for policy in var.runner_autoscaler_policy_amd64 : { for k, v in policy : k => v if v != null }]
+  }
+
   runner_docker_options = {
-    arm64 = merge({
-      for key, value in var.runner_docker_options_arm64 : key => value if value != null
-    }, {})
-    amd64 = merge({
-      for key, value in var.runner_docker_options_amd64 : key => value if value != null
-    }, {})
+    for arch in var.architectures : arch => lookup(local.docker_options_by_arch, arch, {})
   }
 
   runner_autoscaler_options = {
-    arm64 = merge({
-      for key, value in var.runner_autoscaler_options_arm64 : key => value if value != null
-    }, {})
-    amd64 = merge({
-      for key, value in var.runner_autoscaler_options_amd64 : key => value if value != null
-    }, {})
+    for arch in var.architectures : arch => lookup(local.autoscaler_options_by_arch, arch, {})
   }
 
   runner_autoscaler_plugin_connector_options = {
-    arm64 = merge({
-      for key, value in var.runner_autoscaler_plugin_connector_options_arm64 : key => value if value != null
-    }, {})
-    amd64 = merge({
-      for key, value in var.runner_autoscaler_plugin_connector_options_amd64 : key => value if value != null
-    }, {})
+    for arch in var.architectures : arch => lookup(local.plugin_connector_options_by_arch, arch, {})
   }
 
   runner_autoscaler_plugin_options = {
-    arm64 = merge({
-      for key, value in var.runner_autoscaler_plugin_options_arm64 : key => value if value != null
-    }, { name = try(aws_autoscaling_group.gitlab_runner_instance["arm64"].name, null) })
-    amd64 = merge({
-      for key, value in var.runner_autoscaler_plugin_options_amd64 : key => value if value != null
-    }, { name = try(aws_autoscaling_group.gitlab_runner_instance["amd64"].name, null) })
+    for arch in var.architectures : arch => lookup(local.plugin_options_by_arch, arch, {})
   }
 
-  runner_autoscaler_policy_arm64_cleaned = [
-    for policy in var.runner_autoscaler_policy_arm64 : {
-      for key, value in policy : key => value if value != null
-    }
-  ]
-
-  runner_autoscaler_policy_amd64_cleaned = [
-    for policy in var.runner_autoscaler_policy_amd64 : {
-      for key, value in policy : key => value if value != null
-    }
-  ]
-
   runner_autoscaler_policy = {
-    arm64 = local.runner_autoscaler_policy_arm64_cleaned
-    amd64 = local.runner_autoscaler_policy_amd64_cleaned
+    for arch in var.architectures : arch => lookup(local.policy_by_arch, arch, [])
   }
 
   runner_tokens = {
-    arm64 = var.runner_ssm_token_arm64
-    amd64 = var.runner_ssm_token_amd64
+    for arch in var.architectures : arch => (
+      arch == "arm64" ? var.runner_ssm_token_arm64 :
+      arch == "amd64" ? var.runner_ssm_token_amd64 : null
+    )
   }
 
   runner_instances = {
-    amd64 = var.runner_instance_amd64
-    arm64 = var.runner_instance_arm64
+    for arch in var.architectures : arch => (
+      arch == "arm64" ? var.runner_instance_arm64 :
+      arch == "amd64" ? var.runner_instance_amd64 : null
+    )
   }
 
   template_runner_config = templatefile("${path.module}/templates/runner_manager.tftpl",

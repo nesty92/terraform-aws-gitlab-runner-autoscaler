@@ -59,61 +59,65 @@ resource "aws_iam_role" "runner_manager" {
     ]
   })
 
-  inline_policy {
-    name = "ssm-read-runner-tokens"
-    policy = jsonencode({
-      Version = "2012-10-17",
-      Statement = [
-        {
-          Effect = "Allow",
-          Action = "ssm:GetParameters",
-          Resource = [
-            for token in local.runner_tokens : token.arn
-          ]
-        }
-      ]
-    })
-  }
+  tags = local.tags
+}
 
-  inline_policy {
-    name = "gitlab-runner-manager"
-    policy = jsonencode({
-      Version = "2012-10-17",
-      Statement = [
-        {
-          Effect = "Allow",
-          Action = [
-            "autoscaling:SetDesiredCapacity",
-            "autoscaling:TerminateInstanceInAutoScalingGroup"
-          ],
-          Resource = [for asg in aws_autoscaling_group.gitlab_runner_instance : asg.arn]
-        },
-        {
-          "Effect" : "Allow",
-          "Action" : [
-            "autoscaling:DescribeAutoScalingGroups",
-            "ec2:DescribeInstances"
-          ],
-          "Resource" : "*"
-        },
-        {
-          "Effect" : "Allow",
-          "Action" : [
-            "ec2:GetPasswordData",
-            "ec2-instance-connect:SendSSHPublicKey"
-          ],
-          "Resource" : "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*",
-          "Condition" : {
-            "StringEquals" : {
-              "ec2:ResourceTag/aws:autoscaling:groupName" : [for asg in aws_autoscaling_group.gitlab_runner_instance : asg.name]
-            }
+resource "aws_iam_role_policy" "ssm_read_runner_tokens" {
+  name = "ssm-read-runner-tokens"
+  role = aws_iam_role.runner_manager.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = "ssm:GetParameters",
+        Resource = [
+          for arch in var.architectures : local.runner_tokens[arch].arn if local.runner_tokens[arch] != null
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "gitlab_runner_manager" {
+  name = "gitlab-runner-manager"
+  role = aws_iam_role.runner_manager.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = [
+          "autoscaling:SetDesiredCapacity",
+          "autoscaling:TerminateInstanceInAutoScalingGroup"
+        ],
+        Resource = [for arch in var.architectures : aws_autoscaling_group.gitlab_runner_instance[arch].arn]
+      },
+      {
+        "Effect" : "Allow",
+        "Action" : [
+          "autoscaling:DescribeAutoScalingGroups",
+          "ec2:DescribeInstances"
+        ],
+        "Resource" : "*"
+      },
+      {
+        "Effect" : "Allow",
+        "Action" : [
+          "ec2:GetPasswordData",
+          "ec2-instance-connect:SendSSHPublicKey"
+        ],
+        "Resource" : "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*",
+        "Condition" : {
+          "StringEquals" : {
+            "ec2:ResourceTag/aws:autoscaling:groupName" : [for arch in var.architectures : aws_autoscaling_group.gitlab_runner_instance[arch].name]
           }
         }
-      ]
-    })
-  }
-
-  tags = local.tags
+      }
+    ]
+  })
 }
 
 resource "aws_iam_instance_profile" "runner_manager" {
@@ -139,7 +143,7 @@ resource "aws_instance" "runner_manager" {
     aws_region         = data.aws_region.current.name,
     runners_config     = local.template_runner_config
     runners_gitlab_url = var.gitlab_instance_url
-    runner_tokens      = local.runner_tokens
+    runner_tokens      = { for arch in var.architectures : arch => local.runner_tokens[arch] if local.runner_tokens[arch] != null }
 
     fleeting_plugin_aws_version = var.fleeting_plugin_aws_version
     gitlab_runner_version       = var.gitlab_runner_version

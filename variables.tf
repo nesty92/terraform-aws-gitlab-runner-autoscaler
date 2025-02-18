@@ -22,7 +22,7 @@ variable "gitlab_instance_url" {
 }
 
 variable "architectures" {
-  description = "The architectures that the Runner will support (e.g., arm64, amd64)"
+  description = "The architectures that the Runner will support (e.g., arm64, amd64). Each specified architecture requires its corresponding runner_instance configuration."
   type        = list(string)
   validation {
     condition     = length(var.architectures) > 0 && alltrue([for arch in var.architectures : contains(["arm64", "amd64"], arch)])
@@ -64,21 +64,31 @@ variable "gitlab_runner_version" {
 }
 
 variable "runner_ssm_token_arm64" {
-  description = "The SSM parameter that stores the authentication token for the Runner (arm64)"
+  description = "The SSM parameter that stores the authentication token for the Runner (arm64). Required when arm64 architecture is specified."
   type = object({
     name   = string
     arn    = string
     region = string
   })
+  default = null
+  validation {
+    condition     = var.runner_ssm_token_arm64 != null || !contains(coalesce(var.architectures, []), "arm64")
+    error_message = "runner_ssm_token_arm64 is required when arm64 architecture is specified."
+  }
 }
 
 variable "runner_ssm_token_amd64" {
-  description = "The SSM parameter that stores the authentication token for the Runner (amd64)"
+  description = "The SSM parameter that stores the authentication token for the Runner (amd64). Required when amd64 architecture is specified."
   type = object({
     name   = string
     arn    = string
     region = string
   })
+  default = null
+  validation {
+    condition     = var.runner_ssm_token_amd64 != null || !contains(coalesce(var.architectures, []), "amd64")
+    error_message = "runner_ssm_token_amd64 is required when amd64 architecture is specified."
+  }
 }
 
 variable "runner_manager" {
@@ -477,23 +487,7 @@ variable "runner_autoscaler_policy_arm64" {
 
 
 variable "runner_instance_amd64" {
-  description = <<-EOT
-    ami_id = The AMI ID to use for the Runner instance.
-    additional_tags = Map of tags that will be added to the Runner instance.
-    collect_autoscaling_metrics = A list of metrics to collect. The allowed values are GroupDesiredCapacity, GroupInServiceCapacity, GroupPendingCapacity, GroupMinSize, GroupMaxSize, GroupInServiceInstances, GroupPendingInstances, GroupStandbyInstances, GroupStandbyCapacity, GroupTerminatingCapacity, GroupTerminatingInstances, GroupTotalCapacity, GroupTotalInstances.
-    ebs_optimized = Enable EBS optimization for the Runner instance.
-    max_lifetime_seconds = The maximum time a Runner should live before it is killed.
-    monitoring = Enable the detailed monitoring on the Runner instance. Default: false
-    name_prefix = Set the name prefix and override the `Name` tag for the Runner instance.
-    private_address_only = Restrict the Runner to use private IP addresses only. If this is set to `true` the Runner will use a private IP address only in case the Runner Workers use private addresses only.
-    block_device_mappings = The Runner's root block device configuration. Takes the following keys: `device_name`, `delete_on_termination`, `volume_type`, `volume_size`, `encrypted`, `iops`, `throughput`, `kms_key_id`
-    spot_price = By setting a spot price bid price the Runner is created via a spot request. Be aware that spot instances can be stopped by AWS. Choose \"on-demand-price\" to pay up to the current on demand price for the instance type chosen.
-    ssm_access = Allows to connect to the Runner via SSM.
-    type = EC2 instance type used. Default: t3.micro
-    use_eip = Assigns an EIP to the Runner.
-    iam_instance_profile = The IAM instance profile to associate with the Runner instance.
-    security_group_ids = The security group IDs to associate with the Runner instance.
-  EOT
+  description = "Configuration for the AMD64 GitLab Runner instance. Required when amd64 architecture is specified."
   type = object({
     ami_id                      = string
     additional_tags             = optional(map(string))
@@ -511,26 +505,11 @@ variable "runner_instance_amd64" {
     iam_instance_profile        = optional(string)
     security_group_ids          = optional(list(string), [])
   })
+  default = null
 }
 
 variable "runner_instance_arm64" {
-  description = <<-EOT
-    ami_id = The AMI ID to use for the Runner instance.
-    additional_tags = Map of tags that will be added to the Runner instance.
-    collect_autoscaling_metrics = A list of metrics to collect. The allowed values are GroupDesiredCapacity, GroupInServiceCapacity, GroupPendingCapacity, GroupMinSize, GroupMaxSize, GroupInServiceInstances, GroupPendingInstances, GroupStandbyInstances, GroupStandbyCapacity, GroupTerminatingCapacity, GroupTerminatingInstances, GroupTotalCapacity, GroupTotalInstances.
-    ebs_optimized = Enable EBS optimization for the Runner instance.
-    max_lifetime_seconds = The maximum time a Runner should live before it is killed.
-    monitoring = Enable the detailed monitoring on the Runner instance. Default: false
-    name_prefix = Set the name prefix and override the `Name` tag for the Runner instance.
-    private_address_only = Restrict the Runner to use private IP addresses only. If this is set to `true` the Runner will use a private IP address only in case the Runner Workers use private addresses only.
-    block_device_mappings = The Runner's root block device configuration. Takes the following keys: `device_name`, `delete_on_termination`, `volume_type`, `volume_size`, `encrypted`, `iops`, `throughput`, `kms_key_id`
-    spot_price = By setting a spot price bid price the Runner is created via a spot request. Be aware that spot instances can be stopped by AWS. Choose \"on-demand-price\" to pay up to the current on demand price for the instance type chosen.
-    ssm_access = Allows to connect to the Runner via SSM.
-    type = EC2 instance type used. Default: t4g.micro
-    use_eip = Assigns an EIP to the Runner.
-    iam_instance_profile = The IAM instance profile to associate with the Runner instance.
-    security_group_ids = The security group IDs to associate with the Runner instance.
-  EOT
+  description = "Configuration for the ARM64 GitLab Runner instance. Required when arm64 architecture is specified."
   type = object({
     ami_id                      = string
     additional_tags             = optional(map(string))
@@ -548,4 +527,9 @@ variable "runner_instance_arm64" {
     iam_instance_profile        = optional(string)
     security_group_ids          = optional(list(string), [])
   })
+  default = null
+  validation {
+    condition     = var.runner_instance_arm64 != null || !contains(coalesce(var.architectures, []), "arm64")
+    error_message = "runner_instance_arm64 is required when arm64 architecture is specified."
+  }
 }

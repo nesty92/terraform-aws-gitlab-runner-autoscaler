@@ -12,6 +12,16 @@ variable "region" {
   default = "us-west-2"
 }
 
+variable "vpc_id" {
+  type        = string
+  description = "The VPC ID where the builder will launch the instance"
+}
+
+variable "subnet_id" {
+  type        = string
+  description = "The Subnet ID where the builder will launch the instance"
+}
+
 locals {
     timestamp = regex_replace(timestamp(), "[- TZ:]", "")
     name = "gitlab-runner-${local.timestamp}"
@@ -21,6 +31,8 @@ source "amazon-ebs" "amazon-linux-x86_64" {
   ami_name      = format("%s-%s", local.name, "amazon-linux-x86_64")
   instance_type = "t2.nano"
   region        = var.region
+  vpc_id        = var.vpc_id
+  subnet_id     = var.subnet_id
 
   source_ami_filter {
     filters = {
@@ -39,6 +51,8 @@ source "amazon-ebs" "amazon-linux-arm64" {
   ami_name      = format("%s-%s", local.name, "amazon-linux-arm64")
   instance_type = "t4g.nano"
   region        = var.region
+  vpc_id        = var.vpc_id
+  subnet_id     = var.subnet_id
 
   source_ami_filter {
     filters = {

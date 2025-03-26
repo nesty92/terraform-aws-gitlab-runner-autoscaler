@@ -13,6 +13,16 @@ listen_address = "${prometheus_listen_address}"
 
     executor = "docker-autoscaler"
 
+    [runners.cache]
+      Type = "s3"
+      Shared = true
+      [runners.cache.s3]
+        ServerAddress = "s3.amazonaws.com"
+        AccessKey = "${config.access_key}"
+        SecretKey = "${config.secret_key}"
+        BucketName = "${config.cache_bucket_name}"
+        BucketLocation = "${config.aws_region}"
+    
     [runners.docker]
     %{~ for key, value in config.docker ~}
       ${key} = ${jsonencode(value)}

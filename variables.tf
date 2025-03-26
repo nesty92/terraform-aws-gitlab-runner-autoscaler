@@ -533,3 +533,25 @@ variable "runner_instance_arm64" {
     error_message = "runner_instance_arm64 is required when arm64 architecture is specified."
   }
 }
+
+variable "volume_size" {
+  description = "The size of the root volume in GB."
+  type        = number
+  default     = 8
+}
+
+variable "cache_bucket_name" {
+  description = "The name of the S3 bucket used for caching."
+  type        = string
+}
+
+variable "access_key" {
+  description = "The AWS access key ID."
+  type        = string
+}
+
+variable "secret_key" {
+  description = "The AWS secret access key."
+  type        = string
+}
+

@@ -92,11 +92,15 @@ locals {
           plugin = "fleeting-plugin-aws"
 
 
-          docker           = local.runner_docker_options[arch]
-          autoscaler       = local.runner_autoscaler_options[arch]
-          connector_config = local.runner_autoscaler_plugin_connector_options[arch]
-          plugin_config    = local.runner_autoscaler_plugin_options[arch]
-          policy           = local.runner_autoscaler_policy[arch]
+          docker            = local.runner_docker_options[arch]
+          autoscaler        = local.runner_autoscaler_options[arch]
+          connector_config  = local.runner_autoscaler_plugin_connector_options[arch]
+          plugin_config     = local.runner_autoscaler_plugin_options[arch]
+          policy            = local.runner_autoscaler_policy[arch]
+          aws_region        = data.aws_region.current.name
+          cache_bucket_name = var.cache_bucket_name
+          access_key        = var.access_key
+          secret_key        = var.secret_key
         }
       ]
     }

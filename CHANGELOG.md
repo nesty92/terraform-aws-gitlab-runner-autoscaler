@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.3.0...1.4.0) (2025-07-16)
+
+
+### Features
+
+* add feature flag for heartbeats ([5348490](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/534849071c2c112d30a6fd62bcb3ec5f24d01d16))
+
 ## [1.3.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.2.0...1.3.0) (2025-02-18)
 
 

@@ -13,6 +13,9 @@ listen_address = "${prometheus_listen_address}"
 
     executor = "docker-autoscaler"
 
+    [runners.feature_flags]
+      FF_USE_FLEETING_ACQUIRE_HEARTBEATS = true
+
     [runners.docker]
     %{~ for key, value in config.docker ~}
       ${key} = ${jsonencode(value)}

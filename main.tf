@@ -255,6 +255,7 @@ resource "aws_autoscaling_group" "gitlab_runner_instance" {
   health_check_grace_period = 0
   max_instance_lifetime     = local.runner_instances[each.key].max_lifetime_seconds
   enabled_metrics           = local.runner_instances[each.key].collect_autoscaling_metrics
+  suspended_processes       = ["AZRebalance"]
 
   dynamic "tag" {
     for_each = merge(

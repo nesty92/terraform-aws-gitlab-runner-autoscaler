@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.4.0...1.4.1) (2025-07-23)
+
+
+### Bug Fixes
+
+* Suspend AZRebalance in ASG to prevent spot rescheduling ([a19ad01](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/a19ad01bbf3bbeab779b8480cc61eef43979dded))
+
 ## [1.4.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.3.0...1.4.0) (2025-07-16)
 
 

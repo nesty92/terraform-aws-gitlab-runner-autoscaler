@@ -99,7 +99,8 @@ resource "aws_iam_role_policy" "gitlab_runner_manager" {
         "Effect" : "Allow",
         "Action" : [
           "autoscaling:DescribeAutoScalingGroups",
-          "ec2:DescribeInstances"
+          "ec2:DescribeInstances",
+          "ec2:DescribeSpotInstanceRequests"
         ],
         "Resource" : "*"
       },

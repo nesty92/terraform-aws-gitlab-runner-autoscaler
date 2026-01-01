@@ -11,6 +11,28 @@ The Runner Manager is deployed as an EC2 instance and the Runner instances are d
 [![Architecture Diagram](https://raw.githubusercontent.com/nesty92/terraform-aws-gitlab-runner-autoscaler/main/docs/architecture.png)](https://raw.githubusercontent.com/nesty92/terraform-aws-gitlab-runner-autoscaler/main/docs/architecture.png)
 *Architecture Diagram - See: [GitLab Runner Autoscaler documentation](https://docs.gitlab.com/runner/runner_autoscale/#gitlab-runner-autoscaler) for more details*
 
+## AMI Preparation
+
+This module requires pre-configured AMI IDs for runner instances. You must provide AMI IDs via `runner_instance_amd64.ami_id` and/or `runner_instance_arm64.ami_id` variables depending on which architectures you're using.
+
+**Build AMIs using Packer** (recommended):
+
+```bash
+cd packer
+packer init .
+packer build -var="vpc_id=vpc-xxxxx" -var="subnet_id=subnet-xxxxx" image.pkr.hcl
+```
+
+This builds both AMD64 and ARM64 AMIs with Docker pre-installed. Use the AMI IDs from the output in your Terraform configuration:
+
+```hcl
+runner_instance_amd64 = {
+  ami_id = "ami-0123456789abcdef0"
+  # ... other configuration
+}
+```
+
+For detailed AMI requirements, build instructions, and troubleshooting, see the [Packer documentation](./packer/Readme.md).
 
 ## License
 

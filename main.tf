@@ -128,6 +128,11 @@ resource "aws_iam_instance_profile" "runner_manager" {
   tags = local.tags
 }
 
+resource "aws_iam_role_policy_attachment" "runner_manager_ssm_managed_instance_core" {
+  role       = aws_iam_role.runner_manager.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
 
 resource "aws_instance" "runner_manager" {
   ami                  = data.aws_ami.amazon_linux_2.id

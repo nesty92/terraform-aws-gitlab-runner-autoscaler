@@ -238,6 +238,16 @@ resource "aws_launch_template" "gitlab_runner_instance" {
     }
   }
 
+  dynamic "cpu_options" {
+    for_each = local.runner_instances[each.key].nested_virtualization ? [1] : []
+
+    content {
+      nested_virtualization = "enabled"
+    }
+  }
+
+
+
   tags = local.tags
 
   lifecycle {

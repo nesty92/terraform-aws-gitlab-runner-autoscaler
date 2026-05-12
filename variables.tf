@@ -504,6 +504,7 @@ variable "runner_instance_amd64" {
     use_eip                     = optional(bool, false)
     iam_instance_profile        = optional(string)
     security_group_ids          = optional(list(string), [])
+    nested_virtualization       = optional(bool, false)
   })
   default = null
 }
@@ -526,6 +527,7 @@ variable "runner_instance_arm64" {
     use_eip                     = optional(bool, false)
     iam_instance_profile        = optional(string)
     security_group_ids          = optional(list(string), [])
+    nested_virtualization       = optional(bool, false)
   })
   default = null
   validation {

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.5.0...1.6.0) (2026-05-12)
+
+
+### Features
+
+* add support for cpu_options and ssm ([#17](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/issues/17)) ([be77bb7](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/be77bb7f44d3713ebd2bec3381ade7176b5653e9))
+
 ## [1.5.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.4.1...1.5.0) (2025-11-12)
 
 

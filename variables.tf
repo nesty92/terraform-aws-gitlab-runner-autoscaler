@@ -504,7 +504,12 @@ variable "runner_instance_amd64" {
     use_eip                     = optional(bool, false)
     iam_instance_profile        = optional(string)
     security_group_ids          = optional(list(string), [])
-    nested_virtualization       = optional(bool, false)
+    cpu_options = optional(object({
+      core_count            = optional(number)
+      threads_per_core      = optional(number)
+      amd_sev_snp           = optional(string)
+      nested_virtualization = optional(string)
+    }), null)
   })
   default = null
 }
@@ -527,7 +532,12 @@ variable "runner_instance_arm64" {
     use_eip                     = optional(bool, false)
     iam_instance_profile        = optional(string)
     security_group_ids          = optional(list(string), [])
-    nested_virtualization       = optional(bool, false)
+    cpu_options = optional(object({
+      core_count            = optional(number)
+      threads_per_core      = optional(number)
+      amd_sev_snp           = optional(string)
+      nested_virtualization = optional(string)
+    }), null)
   })
   default = null
   validation {

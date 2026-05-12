@@ -239,10 +239,13 @@ resource "aws_launch_template" "gitlab_runner_instance" {
   }
 
   dynamic "cpu_options" {
-    for_each = local.runner_instances[each.key].nested_virtualization ? [1] : []
+    for_each = local.runner_instances[each.key].cpu_options == null ? [] : [local.runner_instances[each.key].cpu_options]
 
     content {
-      nested_virtualization = "enabled"
+      core_count            = try(cpu_options.value.core_count, null)
+      threads_per_core      = try(cpu_options.value.threads_per_core, null)
+      amd_sev_snp           = try(cpu_options.value.amd_sev_snp, null)
+      nested_virtualization = try(cpu_options.value.nested_virtualization, null)
     }
   }
 

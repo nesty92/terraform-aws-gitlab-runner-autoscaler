@@ -1,5 +1,12 @@
 # Terraform Module: GitLab Runner Autoscaler on AWS Spot Instances
 
+[![Validation](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/actions/workflows/validation.yml/badge.svg?branch=main)](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/actions/workflows/validation.yml)
+[![Security](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/actions/workflows/security.yml)
+[![Terraform](https://img.shields.io/badge/terraform-%3E%3D1.3-623CE4?logo=terraform)](https://www.terraform.io)
+[![OpenTofu](https://img.shields.io/badge/opentofu-compatible-FFDA18?logo=opentofu&logoColor=black)](https://opentofu.org)
+[![Release](https://img.shields.io/github/v/release/nesty92/terraform-aws-gitlab-runner-autoscaler?sort=semver)](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/releases)
+[![License](https://img.shields.io/github/license/nesty92/terraform-aws-gitlab-runner-autoscaler)](LICENSE)
+
 This Terraform module provides a reusable infrastructure configuration for deploying GitLab Runner instances on AWS Spot Instances. Using the AWS Fleeting plugin, the Runner instances can be automatically scaled based on the number of jobs in the GitLab CI/CD pipeline. The module supports both ARM64 and AMD64 architectures.
 
 ## Architecture

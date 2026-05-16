@@ -1,4 +1,15 @@
 # This file provides an example usage of the Terraform module.
+terraform {
+  required_version = ">= 1.9"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.11"
+    }
+  }
+}
+
 data "aws_availability_zones" "available" {}
 
 # Define the provider configuration
@@ -11,7 +22,8 @@ locals {
 }
 
 module "vpc" {
-  source = "terraform-aws-modules/vpc/aws"
+  source  = "terraform-aws-modules/vpc/aws"
+  version = "~> 5.0"
 
   name = "vpc-${var.environment}"
   cidr = "10.0.0.0/16"

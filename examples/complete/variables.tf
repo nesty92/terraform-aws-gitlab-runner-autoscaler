@@ -1,10 +1,12 @@
 variable "region" {
   description = "The AWS region to deploy the GitLab Runner to."
+  type        = string
   default     = "us-west-2"
 }
 
 variable "environment" {
   description = "The environment to deploy the GitLab Runner to."
+  type        = string
   default     = "test"
 }
 

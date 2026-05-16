@@ -2,7 +2,7 @@
 
 [![Validation](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/actions/workflows/validation.yml/badge.svg?branch=main)](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/actions/workflows/validation.yml)
 [![Security](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/actions/workflows/security.yml)
-[![Terraform](https://img.shields.io/badge/terraform-%3E%3D1.3-623CE4?logo=terraform)](https://www.terraform.io)
+[![Terraform](https://img.shields.io/badge/terraform-%3E%3D1.9-623CE4?logo=terraform)](https://www.terraform.io)
 [![OpenTofu](https://img.shields.io/badge/opentofu-compatible-FFDA18?logo=opentofu&logoColor=black)](https://opentofu.org)
 [![Release](https://img.shields.io/github/v/release/nesty92/terraform-aws-gitlab-runner-autoscaler?sort=semver)](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/releases)
 [![License](https://img.shields.io/github/license/nesty92/terraform-aws-gitlab-runner-autoscaler)](LICENSE)

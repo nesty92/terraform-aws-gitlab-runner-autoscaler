@@ -40,3 +40,7 @@ override.tf.json
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
+
+# Agent/skill tooling (installed via npx skills@latest — not part of the module)
+.agents/
+skills-lock.json

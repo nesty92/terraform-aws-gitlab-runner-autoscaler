@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.6.0...2.0.0) (2026-05-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* minimum supported Terraform is now 1.9. Consumers on Terraform 1.3-1.8 or OpenTofu 1.6-1.8 will need to upgrade.
+
+### Continuous Integration
+
+* add validation and security workflows with module hardening ([#19](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/issues/19)) ([5240924](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/5240924f5ec7a0f1aea7ba3d0e224400e150afc8))
+
 ## [1.6.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.5.0...1.6.0) (2026-05-12)
 
 

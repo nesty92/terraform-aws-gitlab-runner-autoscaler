@@ -109,6 +109,12 @@ variable "runner_manager" {
   default = {}
 }
 
+variable "runner_manager_instance_type" {
+  description = "EC2 instance type for the Runner Manager. Must support EBS optimization."
+  type        = string
+  default     = "t3.nano"
+}
+
 # Docker options for the Runner Worker
 variable "runner_docker_options_amd64" {
   description = <<EOT

@@ -136,14 +136,20 @@ resource "aws_iam_role_policy_attachment" "runner_manager_ssm_managed_instance_c
 
 resource "aws_instance" "runner_manager" {
   ami                  = data.aws_ami.amazon_linux_2.id
-  instance_type        = "t2.nano"
+  instance_type        = var.runner_manager_instance_type
   iam_instance_profile = aws_iam_instance_profile.runner_manager.name
 
   associate_public_ip_address = false
+  ebs_optimized               = true
+  monitoring                  = true
 
   vpc_security_group_ids = [aws_security_group.runner_manager.id]
 
   subnet_id = var.aws_subnet_ids[0]
+
+  root_block_device {
+    encrypted = true
+  }
 
   user_data = base64encode(templatefile("${path.module}/templates/runner_manager_user_data.tftpl", {
     aws_region         = data.aws_region.current.name,

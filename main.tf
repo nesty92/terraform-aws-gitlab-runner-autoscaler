@@ -156,6 +156,12 @@ resource "aws_instance" "runner_manager" {
   }))
   user_data_replace_on_change = true
 
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+  }
+
   tags = merge(
     local.tags,
     {
@@ -218,6 +224,12 @@ resource "aws_launch_template" "gitlab_runner_instance" {
   network_interfaces {
     security_groups             = concat([aws_security_group.runner.id], local.runner_instances[each.key].security_group_ids)
     associate_public_ip_address = local.runner_instances[each.key].private_address_only == false
+  }
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
   }
 
   tag_specifications {

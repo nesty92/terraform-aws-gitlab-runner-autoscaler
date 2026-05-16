@@ -37,7 +37,6 @@ module "aws-gitlab-runners-spot-autoscaler" {
   gitlab_runner_version       = var.gitlab_runner_version
 
   aws_vpc_id     = module.vpc.vpc_id
-  aws_azs        = module.vpc.azs
   aws_subnet_ids = module.vpc.private_subnets
 
   architectures = local.architectures

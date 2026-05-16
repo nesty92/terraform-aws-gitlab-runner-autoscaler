@@ -30,27 +30,12 @@ variable "architectures" {
   }
 }
 
-variable "aws_azs" {
-  type    = list(string)
-  default = []
-}
-
 variable "aws_vpc_id" {
   type = string
 }
 
 variable "aws_subnet_ids" {
   type = list(string)
-}
-
-variable "aws_security_group_ids" {
-  type    = list(string)
-  default = []
-}
-
-variable "aws_key_name" {
-  type    = string
-  default = ""
 }
 
 variable "fleeting_plugin_aws_version" {

@@ -1,4 +1,6 @@
+# trivy:ignore:AVD-AWS-0104 Runners execute arbitrary CI jobs and require broad outbound access (container registries, package mirrors, user-defined endpoints).
 resource "aws_security_group" "runner" {
+  #checkov:skip=CKV_AWS_382:Runners execute arbitrary CI jobs and require broad outbound access; consumers should restrict via VPC endpoints/NACLs if needed.
   name_prefix = "gitlab-runner"
   description = "Security group for GitLab Runner instances"
   vpc_id      = var.aws_vpc_id
@@ -20,6 +22,7 @@ resource "aws_security_group" "runner" {
   }
 
   egress {
+    description = "Allow all outbound traffic for CI workloads"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -29,15 +32,25 @@ resource "aws_security_group" "runner" {
   tags = local.tags
 }
 
+# trivy:ignore:AVD-AWS-0104 Manager must reach GitLab and AWS API endpoints on the public internet; egress is port-restricted to HTTPS and DNS.
 resource "aws_security_group" "runner_manager" {
   name_prefix = "gitlab-runner-manager"
   description = "Security group for the GitLab Runner Manager instance"
   vpc_id      = var.aws_vpc_id
 
   egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    description = "Allow HTTPS to GitLab and AWS API endpoints"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "Allow DNS resolution"
+    from_port   = 53
+    to_port     = 53
+    protocol    = "udp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 

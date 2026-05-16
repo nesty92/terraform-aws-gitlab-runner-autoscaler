@@ -1,0 +1,119 @@
+---
+name: Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions: read-all
+
+concurrency:
+  group: validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  fmt:
+    name: Terraform fmt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: "1.9.8"
+          terraform_wrapper: false
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive -diff
+
+  validate:
+    name: ${{ matrix.runtime.name }} ${{ matrix.runtime.version }} validate (${{ matrix.directory }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        directory:
+          - "."
+          - "examples/complete"
+          - "examples/amd64-only"
+        runtime:
+          - { name: terraform, version: "1.3.10" }
+          - { name: terraform, version: "1.9.8" }
+          - { name: opentofu, version: "1.8.6" }
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Terraform
+        if: matrix.runtime.name == 'terraform'
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: ${{ matrix.runtime.version }}
+          terraform_wrapper: false
+
+      - name: Setup OpenTofu
+        if: matrix.runtime.name == 'opentofu'
+        uses: opentofu/setup-opentofu@9d84900f3238fab8cd84ce47d658d25dd008be2f # v1
+        with:
+          tofu_version: ${{ matrix.runtime.version }}
+          tofu_wrapper: false
+
+      - name: Init
+        working-directory: ${{ matrix.directory }}
+        run: |
+          if [ "${{ matrix.runtime.name }}" = "opentofu" ]; then
+            tofu init -backend=false
+          else
+            terraform init -backend=false
+          fi
+
+      - name: Validate
+        working-directory: ${{ matrix.directory }}
+        run: |
+          if [ "${{ matrix.runtime.name }}" = "opentofu" ]; then
+            tofu validate
+          else
+            terraform validate
+          fi
+
+  tflint:
+    name: TFLint (${{ matrix.directory }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        directory:
+          - "."
+          - "examples/complete"
+          - "examples/amd64-only"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Cache TFLint plugin dir
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.tflint.d/plugins
+          key: ${{ runner.os }}-tflint-${{ hashFiles('.tflint.hcl') }}
+
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@90f302c255ef959cbfb4bd10581afecdb7ece3e6 # v4
+        with:
+          tflint_version: v0.55.1
+
+      - name: Init TFLint
+        working-directory: ${{ matrix.directory }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: tflint --init --config "${GITHUB_WORKSPACE}/.tflint.hcl"
+
+      - name: Run TFLint
+        working-directory: ${{ matrix.directory }}
+        run: tflint --format compact --config "${GITHUB_WORKSPACE}/.tflint.hcl"

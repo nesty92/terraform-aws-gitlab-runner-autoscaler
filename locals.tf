@@ -11,6 +11,13 @@ locals {
 
   tags = { for k, v in local.tags_merged : k => v if !contains(var.suppressed_tags, k) }
 
+  # The ports the manager reaches a Runner instance on, keyed by the protocol
+  # that names them in the rules' descriptions.
+  runner_manager_to_runner_ports = {
+    SSH   = { from_port = 22, to_port = 22 }
+    WinRM = { from_port = 5985, to_port = 5986 }
+  }
+
   docker_options_by_arch = {
     arm64 = { for k, v in var.runner_docker_options_arm64 : k => v if v != null }
     amd64 = { for k, v in var.runner_docker_options_amd64 : k => v if v != null }

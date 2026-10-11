@@ -1,58 +1,80 @@
-# trivy:ignore:AVD-AWS-0104 Runners execute arbitrary CI jobs and require broad outbound access (container registries, package mirrors, user-defined endpoints).
+# Every rule of both security groups is a standalone resource, never an inline
+# block: the manager's egress names the runner group and the runner's ingress
+# names the manager group, which inline blocks cannot express without a cycle,
+# and the provider does not allow inline and standalone rules on one group.
 resource "aws_security_group" "runner" {
-  #checkov:skip=CKV_AWS_382:Runners execute arbitrary CI jobs and require broad outbound access; consumers should restrict via VPC endpoints/NACLs if needed.
   name_prefix = "gitlab-runner"
   description = "Security group for GitLab Runner instances"
   vpc_id      = var.aws_vpc_id
 
-  ingress {
-    description     = "Allow SSH access from the Runner Manager"
-    from_port       = 22
-    to_port         = 22
-    protocol        = "tcp"
-    security_groups = [aws_security_group.runner_manager.id]
-  }
+  tags = local.tags
+}
 
-  ingress {
-    description     = "Allow WinRM access from the Runner Manager"
-    from_port       = 5985
-    to_port         = 5986
-    protocol        = "tcp"
-    security_groups = [aws_security_group.runner_manager.id]
-  }
+resource "aws_vpc_security_group_ingress_rule" "runner_from_manager" {
+  #checkov:skip=CKV_AWS_24:The source is the Runner Manager's security group, not 0.0.0.0/0; the check reads a rule without cidr_ipv4 as open to the world.
+  for_each = local.runner_manager_to_runner_ports
 
-  egress {
-    description = "Allow all outbound traffic for CI workloads"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  security_group_id            = aws_security_group.runner.id
+  description                  = "Allow ${each.key} access from the Runner Manager"
+  ip_protocol                  = "tcp"
+  from_port                    = each.value.from_port
+  to_port                      = each.value.to_port
+  referenced_security_group_id = aws_security_group.runner_manager.id
 
   tags = local.tags
 }
 
-# trivy:ignore:AVD-AWS-0104 Manager must reach GitLab and AWS API endpoints on the public internet; egress is port-restricted to HTTPS and DNS.
+# trivy:ignore:AVD-AWS-0104 Runners execute arbitrary CI jobs and require broad outbound access (container registries, package mirrors, user-defined endpoints).
+resource "aws_vpc_security_group_egress_rule" "runner" {
+  #checkov:skip=CKV_AWS_382:Runners execute arbitrary CI jobs and require broad outbound access; consumers should restrict via VPC endpoints/NACLs if needed.
+  security_group_id = aws_security_group.runner.id
+  description       = "Allow all outbound traffic for CI workloads"
+  ip_protocol       = "-1"
+  cidr_ipv4         = "0.0.0.0/0"
+
+  tags = local.tags
+}
+
 resource "aws_security_group" "runner_manager" {
   name_prefix = "gitlab-runner-manager"
   description = "Security group for the GitLab Runner Manager instance"
   vpc_id      = var.aws_vpc_id
 
-  egress {
-    description = "Allow HTTPS to GitLab and AWS API endpoints"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+  tags = local.tags
+}
+
+# The docker-autoscaler executor drives every Runner instance over SSH (and
+# WinRM for Windows) at its private address: the runner group admits the
+# manager, and the manager must be let out to the runner group.
+resource "aws_vpc_security_group_egress_rule" "runner_manager_to_runner" {
+  for_each = local.runner_manager_to_runner_ports
+
+  security_group_id            = aws_security_group.runner_manager.id
+  description                  = "Allow ${each.key} to the Runner instances"
+  ip_protocol                  = "tcp"
+  from_port                    = each.value.from_port
+  to_port                      = each.value.to_port
+  referenced_security_group_id = aws_security_group.runner.id
+
+  tags = local.tags
+}
+
+# trivy:ignore:AVD-AWS-0104 Manager must reach GitLab, AWS API endpoints and the Amazon Linux package repositories on the public internet; egress is port-restricted to HTTP, HTTPS and DNS.
+resource "aws_vpc_security_group_egress_rule" "runner_manager_to_internet" {
+  for_each = {
+    # Amazon Linux 2 serves its yum repositories over HTTP, and the user data
+    # installs jq and gitlab-runner from them before anything else runs.
+    http  = { description = "Allow HTTP to the Amazon Linux package repositories", ip_protocol = "tcp", port = 80 }
+    https = { description = "Allow HTTPS to GitLab and AWS API endpoints", ip_protocol = "tcp", port = 443 }
+    dns   = { description = "Allow DNS resolution", ip_protocol = "udp", port = 53 }
   }
 
-  egress {
-    description = "Allow DNS resolution"
-    from_port   = 53
-    to_port     = 53
-    protocol    = "udp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  security_group_id = aws_security_group.runner_manager.id
+  description       = each.value.description
+  ip_protocol       = each.value.ip_protocol
+  from_port         = each.value.port
+  to_port           = each.value.port
+  cidr_ipv4         = "0.0.0.0/0"
 
   tags = local.tags
 }

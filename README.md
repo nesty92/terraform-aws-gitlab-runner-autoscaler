@@ -39,6 +39,45 @@ runner_instance_amd64 = {
 - The launch template then omits `instance_market_options`, because AWS refuses a launch template that requests spot itself as the template of a mixed instances policy.
 - An empty list (the default) keeps the plain launch template, unchanged.
 
+## Upgrading from 2.0.x
+
+The runner and manager security groups no longer have inline `ingress` and `egress` blocks. Every rule is now a standalone `aws_vpc_security_group_ingress_rule` or `aws_vpc_security_group_egress_rule` resource. With inline rules, the manager's egress to the runner security group would form a cycle with the runner's ingress from the manager security group.
+
+`moved` cannot carry an inline rule into a standalone resource. Dropping the inline blocks doesn't delete the rules either: the security group treats missing blocks as rules it doesn't manage. So on an existing deployment:
+
+1. **Import the rules that already exist** before the first apply. Otherwise creating them fails with `InvalidPermission.Duplicate`. Add `import` blocks in the root module, and look up the `sgr-` IDs with `aws ec2 describe-security-group-rules --filters Name=group-id,Values=<security group id>`:
+
+   ```hcl
+   import {
+     to = module.<name>.aws_vpc_security_group_ingress_rule.runner_from_manager["SSH"]
+     id = "sgr-..."
+   }
+   import {
+     to = module.<name>.aws_vpc_security_group_ingress_rule.runner_from_manager["WinRM"]
+     id = "sgr-..."
+   }
+   import {
+     to = module.<name>.aws_vpc_security_group_egress_rule.runner
+     id = "sgr-..."
+   }
+   import {
+     to = module.<name>.aws_vpc_security_group_egress_rule.runner_manager_to_internet["https"]
+     id = "sgr-..."
+   }
+   import {
+     to = module.<name>.aws_vpc_security_group_egress_rule.runner_manager_to_internet["dns"]
+     id = "sgr-..."
+   }
+   ```
+
+   Deployments still on 1.x have no 443/tcp or 53/udp rule on the manager. They import only the three runner rules.
+2. **Revoke rules the module no longer declares.** The main one is the all-traffic egress that 1.x gave the manager. These rules stay in place and unmanaged until you remove them by hand.
+3. **Include the rule resources in a targeted apply.** The rule resources are not dependencies of the manager instance, so `-target` on the instance leaves them out. Target `module.<name>` instead.
+
+Imported rules are updated in place, and new rules are added next to the existing ones, so manager-to-runner traffic is not interrupted. Still apply with no jobs running: a change to the ASG tags triggers an instance refresh, and a change to the manager's user data replaces the manager.
+
+Deployments upgrading from 1.x also remove `aws_azs`, which 2.0.0 dropped.
+
 ## AMI Preparation
 
 This module requires pre-configured AMI IDs for runner instances. You must provide AMI IDs via `runner_instance_amd64.ami_id` and/or `runner_instance_arm64.ami_id` variables depending on which architectures you're using.
@@ -97,6 +136,10 @@ No modules.
 | [aws_launch_template.gitlab_runner_instance](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/launch_template) | resource |
 | [aws_security_group.runner](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
 | [aws_security_group.runner_manager](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
+| [aws_vpc_security_group_egress_rule.runner](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
+| [aws_vpc_security_group_egress_rule.runner_manager_to_internet](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
+| [aws_vpc_security_group_egress_rule.runner_manager_to_runner](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
+| [aws_vpc_security_group_ingress_rule.runner_from_manager](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
 | [aws_ami.amazon_linux_2](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/ami) | data source |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |

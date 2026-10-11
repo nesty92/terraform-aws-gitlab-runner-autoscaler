@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.0.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/2.0.0...3.0.0) (2026-10-11)
+
+
+### ⚠ BREAKING CHANGES
+
+* security group rules are standalone resources, and removing the inline blocks does not remove the rules from AWS. Before applying on an existing deployment, import the rules it already has, or the apply fails with InvalidPermission.Duplicate. Rules the module no longer declares stay in place, unmanaged, until revoked by hand. See the README's "Upgrading from 2.0.x".
+
+### Features
+
+* launch runners across instance_type_overrides through a mixed instances policy ([6768c03](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/6768c03392b79ed99a6ad879f8741b40aa60ebe5))
+
 ## [2.0.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/1.6.0...2.0.0) (2026-05-16)
 
 

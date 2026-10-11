@@ -11,6 +11,13 @@ locals {
 
   tags = { for k, v in local.tags_merged : k => v if !contains(var.suppressed_tags, k) }
 
+  # The ports the manager reaches a Runner instance on, keyed by the protocol
+  # that names them in the rules' descriptions.
+  runner_manager_to_runner_ports = {
+    SSH   = { from_port = 22, to_port = 22 }
+    WinRM = { from_port = 5985, to_port = 5986 }
+  }
+
   docker_options_by_arch = {
     arm64 = { for k, v in var.runner_docker_options_arm64 : k => v if v != null }
     amd64 = { for k, v in var.runner_docker_options_amd64 : k => v if v != null }
@@ -76,12 +83,51 @@ locals {
     )
   }
 
+  # The extra instance types the group may launch besides `type`. Empty is the
+  # ordinary case and keeps the group on a plain launch template; a non-empty
+  # list turns it into a mixed instances policy, which is the only shape an ASG
+  # has for "try another type when this one is short".
+  #
+  # The overrides keep the consumer's order, and `type` is appended unless the
+  # list already names it: a mixed policy launches only the types its overrides
+  # list, so the base type must be among them to stay launchable.
+  runner_instance_type_overrides = {
+    for arch in var.architectures : arch => (
+      length(coalesce(local.runner_instances[arch].instance_type_overrides, [])) == 0
+      ? []
+      : distinct(concat(
+        [for override in local.runner_instances[arch].instance_type_overrides : override.instance_type],
+        [local.runner_instances[arch].type],
+      ))
+    )
+  }
+
+  # The ceiling the consumer asked for, or null for "pay up to the on-demand
+  # price". Both the launch template's spot options and the mixed policy's
+  # distribution read it, so the two cannot disagree about what was asked.
+  runner_spot_max_price = {
+    for arch in var.architectures : arch => (
+      # coalesce folds null and "" into "on-demand-price"; contains() refuses a
+      # null value outright.
+      coalesce(local.runner_instances[arch].spot_price, "on-demand-price") == "on-demand-price"
+      ? null
+      : local.runner_instances[arch].spot_price
+    )
+  }
+
   template_runner_config = templatefile("${path.module}/templates/runner_manager.tftpl",
     {
       gitlab_check_interval     = var.runner_manager.gitlab_check_interval
       maximum_concurrent_jobs   = var.runner_manager.maximum_concurrent_jobs
       prometheus_listen_address = var.runner_manager.prometheus_listen_address
       sentry_dsn                = var.runner_manager.sentry_dsn
+      request_concurrency       = var.runner_manager.request_concurrency
+
+      # The module's own flag first, so a consumer's entry for the same key wins.
+      feature_flags = merge(
+        { FF_USE_FLEETING_ACQUIRE_HEARTBEATS = true },
+        var.runner_manager.feature_flags,
+      )
 
       runners_autoscaling = [
         for arch in var.architectures : {

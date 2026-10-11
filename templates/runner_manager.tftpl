@@ -10,11 +10,16 @@ listen_address = "${prometheus_listen_address}"
     url = "${config.url}"
     token = "${config.token}"
     shell = "${config.shell}"
+    %{~ if request_concurrency != null ~}
+    request_concurrency = ${request_concurrency}
+    %{~ endif ~}
 
     executor = "docker-autoscaler"
 
     [runners.feature_flags]
-      FF_USE_FLEETING_ACQUIRE_HEARTBEATS = true
+    %{~ for key, value in feature_flags ~}
+      ${key} = ${jsonencode(value)}
+    %{~ endfor ~}
 
     [runners.docker]
     %{~ for key, value in config.docker ~}

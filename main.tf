@@ -1,58 +1,80 @@
-# trivy:ignore:AVD-AWS-0104 Runners execute arbitrary CI jobs and require broad outbound access (container registries, package mirrors, user-defined endpoints).
+# Every rule of both security groups is a standalone resource, never an inline
+# block: the manager's egress names the runner group and the runner's ingress
+# names the manager group, which inline blocks cannot express without a cycle,
+# and the provider does not allow inline and standalone rules on one group.
 resource "aws_security_group" "runner" {
-  #checkov:skip=CKV_AWS_382:Runners execute arbitrary CI jobs and require broad outbound access; consumers should restrict via VPC endpoints/NACLs if needed.
   name_prefix = "gitlab-runner"
   description = "Security group for GitLab Runner instances"
   vpc_id      = var.aws_vpc_id
 
-  ingress {
-    description     = "Allow SSH access from the Runner Manager"
-    from_port       = 22
-    to_port         = 22
-    protocol        = "tcp"
-    security_groups = [aws_security_group.runner_manager.id]
-  }
+  tags = local.tags
+}
 
-  ingress {
-    description     = "Allow WinRM access from the Runner Manager"
-    from_port       = 5985
-    to_port         = 5986
-    protocol        = "tcp"
-    security_groups = [aws_security_group.runner_manager.id]
-  }
+resource "aws_vpc_security_group_ingress_rule" "runner_from_manager" {
+  #checkov:skip=CKV_AWS_24:The source is the Runner Manager's security group, not 0.0.0.0/0; the check reads a rule without cidr_ipv4 as open to the world.
+  for_each = local.runner_manager_to_runner_ports
 
-  egress {
-    description = "Allow all outbound traffic for CI workloads"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  security_group_id            = aws_security_group.runner.id
+  description                  = "Allow ${each.key} access from the Runner Manager"
+  ip_protocol                  = "tcp"
+  from_port                    = each.value.from_port
+  to_port                      = each.value.to_port
+  referenced_security_group_id = aws_security_group.runner_manager.id
 
   tags = local.tags
 }
 
-# trivy:ignore:AVD-AWS-0104 Manager must reach GitLab and AWS API endpoints on the public internet; egress is port-restricted to HTTPS and DNS.
+# trivy:ignore:AVD-AWS-0104 Runners execute arbitrary CI jobs and require broad outbound access (container registries, package mirrors, user-defined endpoints).
+resource "aws_vpc_security_group_egress_rule" "runner" {
+  #checkov:skip=CKV_AWS_382:Runners execute arbitrary CI jobs and require broad outbound access; consumers should restrict via VPC endpoints/NACLs if needed.
+  security_group_id = aws_security_group.runner.id
+  description       = "Allow all outbound traffic for CI workloads"
+  ip_protocol       = "-1"
+  cidr_ipv4         = "0.0.0.0/0"
+
+  tags = local.tags
+}
+
 resource "aws_security_group" "runner_manager" {
   name_prefix = "gitlab-runner-manager"
   description = "Security group for the GitLab Runner Manager instance"
   vpc_id      = var.aws_vpc_id
 
-  egress {
-    description = "Allow HTTPS to GitLab and AWS API endpoints"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+  tags = local.tags
+}
+
+# The docker-autoscaler executor drives every Runner instance over SSH (and
+# WinRM for Windows) at its private address: the runner group admits the
+# manager, and the manager must be let out to the runner group.
+resource "aws_vpc_security_group_egress_rule" "runner_manager_to_runner" {
+  for_each = local.runner_manager_to_runner_ports
+
+  security_group_id            = aws_security_group.runner_manager.id
+  description                  = "Allow ${each.key} to the Runner instances"
+  ip_protocol                  = "tcp"
+  from_port                    = each.value.from_port
+  to_port                      = each.value.to_port
+  referenced_security_group_id = aws_security_group.runner.id
+
+  tags = local.tags
+}
+
+# trivy:ignore:AVD-AWS-0104 Manager must reach GitLab, AWS API endpoints and the Amazon Linux package repositories on the public internet; egress is port-restricted to HTTP, HTTPS and DNS.
+resource "aws_vpc_security_group_egress_rule" "runner_manager_to_internet" {
+  for_each = {
+    # Amazon Linux 2 serves its yum repositories over HTTP, and the user data
+    # installs jq and gitlab-runner from them before anything else runs.
+    http  = { description = "Allow HTTP to the Amazon Linux package repositories", ip_protocol = "tcp", port = 80 }
+    https = { description = "Allow HTTPS to GitLab and AWS API endpoints", ip_protocol = "tcp", port = 443 }
+    dns   = { description = "Allow DNS resolution", ip_protocol = "udp", port = 53 }
   }
 
-  egress {
-    description = "Allow DNS resolution"
-    from_port   = 53
-    to_port     = 53
-    protocol    = "udp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  security_group_id = aws_security_group.runner_manager.id
+  description       = each.value.description
+  ip_protocol       = each.value.ip_protocol
+  from_port         = each.value.port
+  to_port           = each.value.port
+  cidr_ipv4         = "0.0.0.0/0"
 
   tags = local.tags
 }
@@ -172,6 +194,7 @@ resource "aws_instance" "runner_manager" {
 
     fleeting_plugin_aws_version = var.fleeting_plugin_aws_version
     gitlab_runner_version       = var.gitlab_runner_version
+    enable_ssm_agent            = var.runner_manager.enable_ssm_agent
   }))
   user_data_replace_on_change = true
 
@@ -207,12 +230,18 @@ resource "aws_launch_template" "gitlab_runner_instance" {
     enabled = local.runner_instances[each.key].monitoring
   }
 
-  instance_market_options {
-    market_type = "spot"
-    dynamic "spot_options" {
-      for_each = local.runner_instances[each.key].spot_price == null || local.runner_instances[each.key].spot_price == "" || local.runner_instances[each.key].spot_price == "on-demand-price" ? [] : [0]
-      content {
-        max_price = local.runner_instances[each.key].spot_price
+  # AWS refuses a launch template that requests spot itself as the template of
+  # a mixed instances policy, so with overrides the group's instances
+  # distribution asks for spot instead.
+  dynamic "instance_market_options" {
+    for_each = length(local.runner_instance_type_overrides[each.key]) == 0 ? [0] : []
+    content {
+      market_type = "spot"
+      dynamic "spot_options" {
+        for_each = local.runner_spot_max_price[each.key] == null ? [] : [0]
+        content {
+          max_price = local.runner_spot_max_price[each.key]
+        }
       }
     }
   }
@@ -267,7 +296,9 @@ resource "aws_launch_template" "gitlab_runner_instance" {
   }
 
   dynamic "tag_specifications" {
-    for_each = local.runner_instances[each.key].spot_price == null || local.runner_instances[each.key].spot_price == "" ? [] : ["spot"]
+    # Spot requests are the template's own only when it asks for spot itself;
+    # under a mixed instances policy the group's fleet makes them instead.
+    for_each = length(local.runner_instance_type_overrides[each.key]) > 0 || local.runner_instances[each.key].spot_price == null || local.runner_instances[each.key].spot_price == "" ? [] : ["spot"]
     content {
       resource_type = "spot-instances-request"
       tags          = local.tags
@@ -307,6 +338,13 @@ resource "aws_autoscaling_group" "gitlab_runner_instance" {
   enabled_metrics           = local.runner_instances[each.key].collect_autoscaling_metrics
   suspended_processes       = ["AZRebalance"]
 
+  # fleeting-plugin-aws requires both: the plugin, not the group, chooses
+  # which instance goes, and removes it with
+  # TerminateInstanceInAutoScalingGroup, which protection does not block.
+  # Without protection the group picks its own instance on scale-in, and that
+  # one may be running a job.
+  protect_from_scale_in = true
+
   dynamic "tag" {
     for_each = merge(
       local.tags,
@@ -322,15 +360,53 @@ resource "aws_autoscaling_group" "gitlab_runner_instance" {
     }
   }
 
-  launch_template {
-    id      = each.value.id
-    version = each.value.latest_version
+  # An ASG takes either a launch template or a mixed instances policy, never
+  # both. Without overrides it keeps the plain template; with them it launches
+  # spot across every listed type, in the consumer's order.
+  dynamic "launch_template" {
+    for_each = length(local.runner_instance_type_overrides[each.key]) == 0 ? [0] : []
+    content {
+      id      = each.value.id
+      version = each.value.latest_version
+    }
+  }
+
+  dynamic "mixed_instances_policy" {
+    for_each = length(local.runner_instance_type_overrides[each.key]) == 0 ? [] : [0]
+    content {
+      instances_distribution {
+        on_demand_base_capacity                  = 0
+        on_demand_percentage_above_base_capacity = 0
+        spot_allocation_strategy                 = "price-capacity-optimized"
+        spot_max_price                           = local.runner_spot_max_price[each.key]
+      }
+
+      launch_template {
+        launch_template_specification {
+          launch_template_id = each.value.id
+          version            = each.value.latest_version
+        }
+
+        dynamic "override" {
+          for_each = local.runner_instance_type_overrides[each.key]
+          content {
+            instance_type = override.value
+          }
+        }
+      }
+    }
   }
 
   instance_refresh {
     strategy = "Rolling"
     preferences {
       min_healthy_percentage = 0
+      # Every runner is protected from scale-in. "Ignore" skips protected
+      # runners, so a refresh never waits on or terminates one that may be
+      # running a job; the plugin retires runners itself. The AWS provider
+      # already defaults to it, but the API's own default, "Wait", would stall
+      # each refresh for an hour and then fail it, so it is not left implicit.
+      scale_in_protected_instances = "Ignore"
     }
     triggers = ["tag"]
   }

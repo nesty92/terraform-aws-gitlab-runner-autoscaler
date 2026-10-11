@@ -1,5 +1,7 @@
 This example deploys a GitLab Runner to AWS using spot instances. The runner is configured to use the AWS Fleeting plugin to manage the spot instances.
 
+Both architectures list `instance_type_overrides`, so each Auto Scaling group gets a mixed instances policy: spot across several instance types with the `price-capacity-optimized` allocation strategy, rather than spot on the single `type`.
+
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 

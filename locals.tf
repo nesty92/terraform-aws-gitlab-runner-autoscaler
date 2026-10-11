@@ -76,6 +76,38 @@ locals {
     )
   }
 
+  # The extra instance types the group may launch besides `type`. Empty is the
+  # ordinary case and keeps the group on a plain launch template; a non-empty
+  # list turns it into a mixed instances policy, which is the only shape an ASG
+  # has for "try another type when this one is short".
+  #
+  # The overrides keep the consumer's order, and `type` is appended unless the
+  # list already names it: a mixed policy launches only the types its overrides
+  # list, so the base type must be among them to stay launchable.
+  runner_instance_type_overrides = {
+    for arch in var.architectures : arch => (
+      length(coalesce(local.runner_instances[arch].instance_type_overrides, [])) == 0
+      ? []
+      : distinct(concat(
+        [for override in local.runner_instances[arch].instance_type_overrides : override.instance_type],
+        [local.runner_instances[arch].type],
+      ))
+    )
+  }
+
+  # The ceiling the consumer asked for, or null for "pay up to the on-demand
+  # price". Both the launch template's spot options and the mixed policy's
+  # distribution read it, so the two cannot disagree about what was asked.
+  runner_spot_max_price = {
+    for arch in var.architectures : arch => (
+      # coalesce folds null and "" into "on-demand-price"; contains() refuses a
+      # null value outright.
+      coalesce(local.runner_instances[arch].spot_price, "on-demand-price") == "on-demand-price"
+      ? null
+      : local.runner_instances[arch].spot_price
+    )
+  }
+
   template_runner_config = templatefile("${path.module}/templates/runner_manager.tftpl",
     {
       gitlab_check_interval     = var.runner_manager.gitlab_check_interval

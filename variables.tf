@@ -492,9 +492,12 @@ variable "runner_instance_amd64" {
     spot_price                  = optional(string, null)
     ssm_access                  = optional(bool, false)
     type                        = optional(string, "t3.micro")
-    use_eip                     = optional(bool, false)
-    iam_instance_profile        = optional(string)
-    security_group_ids          = optional(list(string), [])
+    instance_type_overrides = optional(list(object({
+      instance_type = string
+    })), [])
+    use_eip              = optional(bool, false)
+    iam_instance_profile = optional(string)
+    security_group_ids   = optional(list(string), [])
     cpu_options = optional(object({
       core_count            = optional(number)
       threads_per_core      = optional(number)
@@ -520,9 +523,12 @@ variable "runner_instance_arm64" {
     spot_price                  = optional(string, null)
     ssm_access                  = optional(bool, false)
     type                        = optional(string, "t4g.micro")
-    use_eip                     = optional(bool, false)
-    iam_instance_profile        = optional(string)
-    security_group_ids          = optional(list(string), [])
+    instance_type_overrides = optional(list(object({
+      instance_type = string
+    })), [])
+    use_eip              = optional(bool, false)
+    iam_instance_profile = optional(string)
+    security_group_ids   = optional(list(string), [])
     cpu_options = optional(object({
       core_count            = optional(number)
       threads_per_core      = optional(number)

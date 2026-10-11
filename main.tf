@@ -207,12 +207,18 @@ resource "aws_launch_template" "gitlab_runner_instance" {
     enabled = local.runner_instances[each.key].monitoring
   }
 
-  instance_market_options {
-    market_type = "spot"
-    dynamic "spot_options" {
-      for_each = local.runner_instances[each.key].spot_price == null || local.runner_instances[each.key].spot_price == "" || local.runner_instances[each.key].spot_price == "on-demand-price" ? [] : [0]
-      content {
-        max_price = local.runner_instances[each.key].spot_price
+  # AWS refuses a launch template that requests spot itself as the template of
+  # a mixed instances policy, so with overrides the group's instances
+  # distribution asks for spot instead.
+  dynamic "instance_market_options" {
+    for_each = length(local.runner_instance_type_overrides[each.key]) == 0 ? [0] : []
+    content {
+      market_type = "spot"
+      dynamic "spot_options" {
+        for_each = local.runner_spot_max_price[each.key] == null ? [] : [0]
+        content {
+          max_price = local.runner_spot_max_price[each.key]
+        }
       }
     }
   }
@@ -267,7 +273,9 @@ resource "aws_launch_template" "gitlab_runner_instance" {
   }
 
   dynamic "tag_specifications" {
-    for_each = local.runner_instances[each.key].spot_price == null || local.runner_instances[each.key].spot_price == "" ? [] : ["spot"]
+    # Spot requests are the template's own only when it asks for spot itself;
+    # under a mixed instances policy the group's fleet makes them instead.
+    for_each = length(local.runner_instance_type_overrides[each.key]) > 0 || local.runner_instances[each.key].spot_price == null || local.runner_instances[each.key].spot_price == "" ? [] : ["spot"]
     content {
       resource_type = "spot-instances-request"
       tags          = local.tags
@@ -322,9 +330,41 @@ resource "aws_autoscaling_group" "gitlab_runner_instance" {
     }
   }
 
-  launch_template {
-    id      = each.value.id
-    version = each.value.latest_version
+  # An ASG takes either a launch template or a mixed instances policy, never
+  # both. Without overrides it keeps the plain template; with them it launches
+  # spot across every listed type, in the consumer's order.
+  dynamic "launch_template" {
+    for_each = length(local.runner_instance_type_overrides[each.key]) == 0 ? [0] : []
+    content {
+      id      = each.value.id
+      version = each.value.latest_version
+    }
+  }
+
+  dynamic "mixed_instances_policy" {
+    for_each = length(local.runner_instance_type_overrides[each.key]) == 0 ? [] : [0]
+    content {
+      instances_distribution {
+        on_demand_base_capacity                  = 0
+        on_demand_percentage_above_base_capacity = 0
+        spot_allocation_strategy                 = "price-capacity-optimized"
+        spot_max_price                           = local.runner_spot_max_price[each.key]
+      }
+
+      launch_template {
+        launch_template_specification {
+          launch_template_id = each.value.id
+          version            = each.value.latest_version
+        }
+
+        dynamic "override" {
+          for_each = local.runner_instance_type_overrides[each.key]
+          content {
+            instance_type = override.value
+          }
+        }
+      }
+    }
   }
 
   instance_refresh {

@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.1](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.0.0...3.0.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* pass the runner manager's user data as plain text ([#30](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/issues/30)) ([0b83a68](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/0b83a6825a76ccf89a46fba2e426660751cdb865))
+
 ## [3.0.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/2.0.0...3.0.0) (2026-10-11)
 
 

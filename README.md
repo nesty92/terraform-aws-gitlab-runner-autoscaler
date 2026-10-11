@@ -76,6 +76,8 @@ The runner and manager security groups no longer have inline `ingress` and `egre
 
 Imported rules are updated in place, and new rules are added next to the existing ones, so manager-to-runner traffic is not interrupted. Still apply with no jobs running: a change to the ASG tags triggers an instance refresh, and a change to the manager's user data replaces the manager.
 
+The runner ASGs now protect new instances from scale-in, which fleeting-plugin-aws requires. Only instances launched after the apply are protected. Instances that were already running keep no protection until the plugin retires them.
+
 Deployments upgrading from 1.x also remove `aws_azs`, which 2.0.0 dropped.
 
 ## AMI Preparation

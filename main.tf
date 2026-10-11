@@ -338,6 +338,13 @@ resource "aws_autoscaling_group" "gitlab_runner_instance" {
   enabled_metrics           = local.runner_instances[each.key].collect_autoscaling_metrics
   suspended_processes       = ["AZRebalance"]
 
+  # fleeting-plugin-aws requires both: the plugin, not the group, chooses
+  # which instance goes, and removes it with
+  # TerminateInstanceInAutoScalingGroup, which protection does not block.
+  # Without protection the group picks its own instance on scale-in, and that
+  # one may be running a job.
+  protect_from_scale_in = true
+
   dynamic "tag" {
     for_each = merge(
       local.tags,
@@ -394,6 +401,12 @@ resource "aws_autoscaling_group" "gitlab_runner_instance" {
     strategy = "Rolling"
     preferences {
       min_healthy_percentage = 0
+      # Every runner is protected from scale-in. "Ignore" skips protected
+      # runners, so a refresh never waits on or terminates one that may be
+      # running a job; the plugin retires runners itself. The AWS provider
+      # already defaults to it, but the API's own default, "Wait", would stall
+      # each refresh for an hour and then fail it, so it is not left implicit.
+      scale_in_protected_instances = "Ignore"
     }
     triggers = ["tag"]
   }

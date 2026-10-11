@@ -68,11 +68,27 @@ module "aws-gitlab-runners-spot-autoscaler" {
   runner_instance_amd64 = {
     name_prefix = "gitlab-runner-amd64"
     ami_id      = var.runner_amd64_ami_id
+    type        = "m5d.xlarge"
+    # A non-empty list turns the group into a mixed instances policy that
+    # launches spot on whichever of these types has capacity at the best price.
+    # `type` is appended when the list does not already name it.
+    instance_type_overrides = [
+      { instance_type = "c5ad.xlarge" },
+      { instance_type = "c5d.xlarge" },
+      { instance_type = "m5ad.xlarge" },
+      { instance_type = "m5d.xlarge" },
+    ]
   }
 
   runner_instance_arm64 = {
     name_prefix = "gitlab-runner-arm64"
     ami_id      = var.runner_arm64_ami_id
+    type        = "m6gd.xlarge"
+    instance_type_overrides = [
+      { instance_type = "c6gd.xlarge" },
+      { instance_type = "c7gd.xlarge" },
+      { instance_type = "m6gd.xlarge" },
+    ]
   }
 }
 

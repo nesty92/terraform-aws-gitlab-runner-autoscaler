@@ -84,12 +84,18 @@ variable "runner_manager" {
     maximum_concurrent_jobs = The maximum number of jobs which can be processed by all Runners at the same time (concurrent).
     prometheus_listen_address = Defines an address (<host>:<port>) the Prometheus metrics HTTP server should listen on (listen_address).
     sentry_dsn = Sentry DSN of the project for the Runner Manager to use (uses legacy DSN format) (sentry_dsn)
+    request_concurrency = Limit of concurrent requests for new jobs from GitLab, set on every [[runners]] entry (request_concurrency). Omitted from config.toml when null.
+    feature_flags = Extra Runner feature flags set on every [[runners]] entry, merged over the module's FF_USE_FLEETING_ACQUIRE_HEARTBEATS = true. See https://docs.gitlab.com/runner/configuration/feature-flags/
+    enable_ssm_agent = Enable and start amazon-ssm-agent on the Runner Manager from its user data.
   EOT
   type = object({
     gitlab_check_interval     = optional(number, 3)
     maximum_concurrent_jobs   = optional(number, 10)
     prometheus_listen_address = optional(string, "")
     sentry_dsn                = optional(string, "")
+    request_concurrency       = optional(number)
+    feature_flags             = optional(map(bool), {})
+    enable_ssm_agent          = optional(bool, false)
   })
   default = {}
 }

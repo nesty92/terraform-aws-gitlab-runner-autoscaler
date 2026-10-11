@@ -66,4 +66,8 @@ systemctl restart gitlab-runner
 systemctl enable gitlab-runner
 
 # Verify the runner is registered
-gitlab-runner verify
+gitlab-runner verify%{ if enable_ssm_agent }
+
+# Enable SSM Agent
+systemctl enable --now amazon-ssm-agent
+%{ endif ~}

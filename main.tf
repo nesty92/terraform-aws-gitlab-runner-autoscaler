@@ -194,6 +194,7 @@ resource "aws_instance" "runner_manager" {
 
     fleeting_plugin_aws_version = var.fleeting_plugin_aws_version
     gitlab_runner_version       = var.gitlab_runner_version
+    enable_ssm_agent            = var.runner_manager.enable_ssm_agent
   }))
   user_data_replace_on_change = true
 

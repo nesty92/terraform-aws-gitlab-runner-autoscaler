@@ -121,6 +121,13 @@ locals {
       maximum_concurrent_jobs   = var.runner_manager.maximum_concurrent_jobs
       prometheus_listen_address = var.runner_manager.prometheus_listen_address
       sentry_dsn                = var.runner_manager.sentry_dsn
+      request_concurrency       = var.runner_manager.request_concurrency
+
+      # The module's own flag first, so a consumer's entry for the same key wins.
+      feature_flags = merge(
+        { FF_USE_FLEETING_ACQUIRE_HEARTBEATS = true },
+        var.runner_manager.feature_flags,
+      )
 
       runners_autoscaling = [
         for arch in var.architectures : {

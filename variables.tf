@@ -548,3 +548,150 @@ variable "runner_instance_arm64" {
     error_message = "runner_instance_arm64 is required when arm64 architecture is specified."
   }
 }
+
+variable "runner_pools" {
+  description = <<-EOT
+    Extra runner pools served by the same Runner Manager, keyed by a name that ends up in the pool's launch template,
+    Auto Scaling group (gitlab-runner-<key>-asg) and runner (runner-<key>). Each pool is one more [[runners]] entry in
+    config.toml with its own Auto Scaling group, token, executor and options, for a class the per-architecture runners
+    do not cover (for example a privileged, single-use pool).
+
+    architecture = amd64 or arm64; sets the connector's arch.
+    executor = docker-autoscaler (default) or instance (the job runs directly on the VM).
+    ami_id = The AMI the pool's instances boot from.
+    token = The SSM parameter holding the pool's runner authentication token. Tags and run_untagged belong to the
+      runner's registration in GitLab, not to this module.
+    on_invalid_token = skip (default): a missing or invalid token leaves this pool out of config.toml and the Manager
+      starts the other runners; fail: the Manager's boot exits, as it does for the per-architecture runners.
+    privileged = With docker-autoscaler, sets [runners.docker] privileged = true; with instance, connects as root unless
+      connector.username says otherwise.
+    instance = Launch settings, as runner_instance_amd64 without ami_id, plus user_data (plain text, put on the pool's
+      launch template) and subnet_ids (defaults to aws_subnet_ids).
+    autoscaler = As runner_autoscaler_options_amd64. Defaults: capacity_per_instance = 1, max_instances = 2,
+      max_use_count = 1 for instance (each VM is single-use) and 10 for docker-autoscaler.
+    policy = As runner_autoscaler_policy_amd64.
+    docker = [runners.docker] options, as runner_docker_options_amd64; only with docker-autoscaler.
+    connector = As runner_autoscaler_plugin_connector_options_amd64.
+    plugin = As runner_autoscaler_plugin_options_amd64; the Auto Scaling group's name is always set by the module.
+
+    Adding, changing or removing a pool changes the Manager's user data, which replaces the Manager once. The global
+    concurrent setting (runner_manager.maximum_concurrent_jobs) is shared by every runner.
+  EOT
+
+  type = map(object({
+    architecture = string
+    executor     = optional(string, "docker-autoscaler")
+    ami_id       = string
+    token = object({
+      name   = string
+      arn    = string
+      region = string
+    })
+    on_invalid_token = optional(string, "skip")
+    privileged       = optional(bool, false)
+
+    instance = optional(object({
+      additional_tags             = optional(map(string))
+      collect_autoscaling_metrics = optional(list(string), null)
+      ebs_optimized               = optional(bool, true)
+      max_lifetime_seconds        = optional(number, null)
+      monitoring                  = optional(bool, false)
+      name_prefix                 = optional(string)
+      private_address_only        = optional(bool, true)
+      block_device_mappings       = optional(map(string), {})
+      spot_price                  = optional(string, null)
+      ssm_access                  = optional(bool, false)
+      type                        = optional(string, "t3.micro")
+      instance_type_overrides = optional(list(object({
+        instance_type = string
+      })), [])
+      use_eip              = optional(bool, false)
+      iam_instance_profile = optional(string)
+      security_group_ids   = optional(list(string), [])
+      cpu_options = optional(object({
+        core_count            = optional(number)
+        threads_per_core      = optional(number)
+        amd_sev_snp           = optional(string)
+        nested_virtualization = optional(string)
+      }), null)
+      user_data  = optional(string)
+      subnet_ids = optional(list(string))
+    }), {})
+
+    autoscaler = optional(object({
+      capacity_per_instance = optional(number)
+      max_use_count         = optional(number)
+      max_instances         = optional(number)
+    }), {})
+
+    policy = optional(list(object({
+      periods            = optional(list(string))
+      timezone           = optional(string)
+      idle_count         = optional(number)
+      idle_time          = optional(string)
+      scale_factor       = optional(number)
+      scale_factor_limit = optional(number)
+    })), [{ idle_count = 0, idle_time = "30m" }])
+
+    docker = optional(any)
+
+    connector = optional(object({
+      os                     = optional(string, "linux")
+      arch                   = optional(string)
+      protocol               = optional(string)
+      username               = optional(string)
+      password               = optional(string)
+      key_path               = optional(string)
+      use_static_credentials = optional(bool, false)
+      keepalive              = optional(string)
+      timeout                = optional(string)
+      use_external_addr      = optional(bool, false)
+    }), {})
+
+    plugin = optional(object({
+      profile_name     = optional(string)
+      config_file      = optional(string)
+      credentials_file = optional(string)
+    }), {})
+  }))
+
+  default = {}
+
+  validation {
+    condition     = alltrue([for k in keys(var.runner_pools) : can(regex("^[a-z0-9-]{1,40}$", k)) && !contains(["amd64", "arm64"], k)])
+    error_message = "runner_pools keys must match ^[a-z0-9-]{1,40}$ and must not be amd64 or arm64, which name the per-architecture runners."
+  }
+
+  validation {
+    condition     = alltrue([for p in values(var.runner_pools) : contains(["amd64", "arm64"], p.architecture)])
+    error_message = "A runner pool's architecture must be amd64 or arm64."
+  }
+
+  validation {
+    condition     = alltrue([for p in values(var.runner_pools) : contains(["docker-autoscaler", "instance"], p.executor)])
+    error_message = "A runner pool's executor must be docker-autoscaler or instance."
+  }
+
+  validation {
+    condition     = alltrue([for p in values(var.runner_pools) : contains(["skip", "fail"], p.on_invalid_token)])
+    error_message = "A runner pool's on_invalid_token must be skip or fail."
+  }
+
+  validation {
+    condition     = alltrue([for p in values(var.runner_pools) : p.docker == null || p.executor == "docker-autoscaler"])
+    error_message = "A runner pool's docker options apply only to the docker-autoscaler executor."
+  }
+
+  validation {
+    condition     = alltrue([for p in values(var.runner_pools) : startswith(p.token.arn, "arn:aws:ssm:")])
+    error_message = "A runner pool's token.arn must be an SSM parameter ARN (arn:aws:ssm:...)."
+  }
+
+  validation {
+    condition = length(distinct(concat(
+      [for p in values(var.runner_pools) : p.token.name],
+      [for t in [var.runner_ssm_token_amd64, var.runner_ssm_token_arm64] : t.name if t != null],
+    ))) == length(var.runner_pools) + length([for t in [var.runner_ssm_token_amd64, var.runner_ssm_token_arm64] : t if t != null])
+    error_message = "Every runner pool needs its own token parameter, distinct from the other pools' and the per-architecture runners'."
+  }
+}

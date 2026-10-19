@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.0.1...3.1.0) (2026-10-19)
+
+
+### Features
+
+* add runner_pools for caller-defined runner classes on the same manager ([#32](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/issues/32)) ([89a5b2d](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/89a5b2dff459ce1b32a2f61e18b7436cf83bb9d9))
+
 ## [3.0.1](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.0.0...3.0.1) (2026-10-11)
 
 

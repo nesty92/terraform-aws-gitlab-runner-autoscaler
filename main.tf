@@ -108,7 +108,7 @@ resource "aws_iam_role_policy" "ssm_read_runner_tokens" {
         Effect = "Allow",
         Action = "ssm:GetParameters",
         Resource = [
-          for arch in var.architectures : local.runner_tokens[arch].arn if local.runner_tokens[arch] != null
+          for key in local.pool_order : local.pool_tokens[key].arn if local.pool_tokens[key] != null
         ]
       }
     ]
@@ -128,7 +128,7 @@ resource "aws_iam_role_policy" "gitlab_runner_manager" {
           "autoscaling:SetDesiredCapacity",
           "autoscaling:TerminateInstanceInAutoScalingGroup"
         ],
-        Resource = [for arch in var.architectures : aws_autoscaling_group.gitlab_runner_instance[arch].arn]
+        Resource = [for key in local.pool_order : aws_autoscaling_group.gitlab_runner_instance[key].arn]
       },
       {
         "Effect" : "Allow",
@@ -148,7 +148,7 @@ resource "aws_iam_role_policy" "gitlab_runner_manager" {
         "Resource" : "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*",
         "Condition" : {
           "StringEquals" : {
-            "ec2:ResourceTag/aws:autoscaling:groupName" : [for arch in var.architectures : aws_autoscaling_group.gitlab_runner_instance[arch].name]
+            "ec2:ResourceTag/aws:autoscaling:groupName" : [for key in local.pool_order : aws_autoscaling_group.gitlab_runner_instance[key].name]
           }
         }
       }
@@ -191,6 +191,15 @@ resource "aws_instance" "runner_manager" {
     runners_config     = local.template_runner_config
     runners_gitlab_url = var.gitlab_instance_url
     runner_tokens      = { for arch in var.architectures : arch => local.runner_tokens[arch] if local.runner_tokens[arch] != null }
+    runner_pools = [
+      for key in local.pool_keys : {
+        key              = key
+        token            = var.runner_pools[key].token
+        placeholder      = local.pool_token_placeholders[key]
+        on_invalid_token = var.runner_pools[key].on_invalid_token
+        config           = local.pool_runner_configs[key]
+      }
+    ]
 
     fleeting_plugin_aws_version = var.fleeting_plugin_aws_version
     gitlab_runner_version       = var.gitlab_runner_version
@@ -217,17 +226,18 @@ resource "aws_instance" "runner_manager" {
 }
 
 resource "aws_launch_template" "gitlab_runner_instance" {
-  for_each = toset(var.architectures)
+  for_each = toset(local.pool_order)
 
-  name = local.runner_instances[each.key].name_prefix
+  name = local.pool_instances[each.key].name_prefix
 
-  image_id               = local.runner_instances[each.key].ami_id
-  instance_type          = local.runner_instances[each.key].type
+  image_id               = local.pool_instances[each.key].ami_id
+  instance_type          = local.pool_instances[each.key].type
   update_default_version = true
-  ebs_optimized          = local.runner_instances[each.key].ebs_optimized
+  ebs_optimized          = local.pool_instances[each.key].ebs_optimized
+  user_data              = lookup(local.pool_user_data, each.key, null)
 
   monitoring {
-    enabled = local.runner_instances[each.key].monitoring
+    enabled = local.pool_instances[each.key].monitoring
   }
 
   # AWS refuses a launch template that requests spot itself as the template of
@@ -247,14 +257,14 @@ resource "aws_launch_template" "gitlab_runner_instance" {
   }
 
   dynamic "iam_instance_profile" {
-    for_each = local.runner_instances[each.key].iam_instance_profile == null ? [] : [0]
+    for_each = local.pool_instances[each.key].iam_instance_profile == null ? [] : [0]
     content {
-      name = local.runner_instances[each.key].iam_instance_profile
+      name = local.pool_instances[each.key].iam_instance_profile
     }
   }
 
   dynamic "block_device_mappings" {
-    for_each = [local.runner_instances[each.key].block_device_mappings]
+    for_each = [local.pool_instances[each.key].block_device_mappings]
     content {
       device_name = lookup(block_device_mappings.value, "device_name", "/dev/xvda")
       ebs {
@@ -270,8 +280,8 @@ resource "aws_launch_template" "gitlab_runner_instance" {
   }
 
   network_interfaces {
-    security_groups             = concat([aws_security_group.runner.id], local.runner_instances[each.key].security_group_ids)
-    associate_public_ip_address = local.runner_instances[each.key].private_address_only == false
+    security_groups             = concat([aws_security_group.runner.id], local.pool_instances[each.key].security_group_ids)
+    associate_public_ip_address = local.pool_instances[each.key].private_address_only == false
   }
 
   metadata_options {
@@ -284,9 +294,9 @@ resource "aws_launch_template" "gitlab_runner_instance" {
     resource_type = "instance"
     tags = merge(
       local.tags,
-      local.runner_instances[each.key].additional_tags,
+      local.pool_instances[each.key].additional_tags,
       # overwrites the `Name` key from `local.tags`
-      local.runner_instances[each.key].name_prefix == "" ? { Name = substr(format("%s", var.environment), 0, 16) } : { Name = local.runner_instances[each.key].name_prefix },
+      local.pool_instances[each.key].name_prefix == "" ? { Name = substr(format("%s", var.environment), 0, 16) } : { Name = local.pool_instances[each.key].name_prefix },
     )
   }
 
@@ -298,7 +308,7 @@ resource "aws_launch_template" "gitlab_runner_instance" {
   dynamic "tag_specifications" {
     # Spot requests are the template's own only when it asks for spot itself;
     # under a mixed instances policy the group's fleet makes them instead.
-    for_each = length(local.runner_instance_type_overrides[each.key]) > 0 || local.runner_instances[each.key].spot_price == null || local.runner_instances[each.key].spot_price == "" ? [] : ["spot"]
+    for_each = length(local.runner_instance_type_overrides[each.key]) > 0 || local.pool_instances[each.key].spot_price == null || local.pool_instances[each.key].spot_price == "" ? [] : ["spot"]
     content {
       resource_type = "spot-instances-request"
       tags          = local.tags
@@ -306,7 +316,7 @@ resource "aws_launch_template" "gitlab_runner_instance" {
   }
 
   dynamic "cpu_options" {
-    for_each = local.runner_instances[each.key].cpu_options == null ? [] : [local.runner_instances[each.key].cpu_options]
+    for_each = local.pool_instances[each.key].cpu_options == null ? [] : [local.pool_instances[each.key].cpu_options]
 
     content {
       core_count            = try(cpu_options.value.core_count, null)
@@ -329,13 +339,13 @@ resource "aws_autoscaling_group" "gitlab_runner_instance" {
   for_each = aws_launch_template.gitlab_runner_instance
 
   name                      = format("gitlab-runner-%s-asg", each.key)
-  vpc_zone_identifier       = var.aws_subnet_ids
+  vpc_zone_identifier       = lookup(local.pool_subnet_ids, each.key, var.aws_subnet_ids)
   min_size                  = 0
-  max_size                  = local.runner_autoscaler_options[each.key].max_instances
+  max_size                  = local.pool_autoscaler_options[each.key].max_instances
   desired_capacity          = 0
   health_check_grace_period = 0
-  max_instance_lifetime     = local.runner_instances[each.key].max_lifetime_seconds
-  enabled_metrics           = local.runner_instances[each.key].collect_autoscaling_metrics
+  max_instance_lifetime     = local.pool_instances[each.key].max_lifetime_seconds
+  enabled_metrics           = local.pool_instances[each.key].collect_autoscaling_metrics
   suspended_processes       = ["AZRebalance"]
 
   # fleeting-plugin-aws requires both: the plugin, not the group, chooses
@@ -348,9 +358,9 @@ resource "aws_autoscaling_group" "gitlab_runner_instance" {
   dynamic "tag" {
     for_each = merge(
       local.tags,
-      local.runner_instances[each.key].additional_tags,
+      local.pool_instances[each.key].additional_tags,
       # overwrites the `Name` key from `local.tags`
-      local.runner_instances[each.key].name_prefix == "" ? { Name = substr(format("%s", var.environment), 0, 16) } : { Name = local.runner_instances[each.key].name_prefix },
+      local.pool_instances[each.key].name_prefix == "" ? { Name = substr(format("%s", var.environment), 0, 16) } : { Name = local.pool_instances[each.key].name_prefix },
     )
 
     content {

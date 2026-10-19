@@ -39,6 +39,40 @@ runner_instance_amd64 = {
 - The launch template then omits `instance_market_options`, because AWS refuses a launch template that requests spot itself as the template of a mixed instances policy.
 - An empty list (the default) keeps the plain launch template, unchanged.
 
+## Runner Pools
+
+The per-architecture runners (`amd64`, `arm64`) cover the shared case. `runner_pools` adds more runners to the same Runner Manager, one `[[runners]]` entry each, for a class those do not cover: a privileged runner, a single-use one, one on a custom AMI or the instance executor. Each pool gets its own launch template, Auto Scaling group (`gitlab-runner-<key>-asg`) and token, and the Manager's IAM policy grants it exactly that group and that token. No second Manager is started.
+
+```hcl
+runner_pools = {
+  e2e = {
+    architecture = "amd64"
+    executor     = "instance"
+    ami_id       = "ami-0123456789abcdef0"
+    privileged   = true
+    token = {
+      name   = aws_ssm_parameter.runner_registration_token["e2e"].name
+      arn    = aws_ssm_parameter.runner_registration_token["e2e"].arn
+      region = "us-west-2"
+    }
+    instance = {
+      type      = "m8id.xlarge"
+      user_data = file("${path.module}/e2e-user-data.sh")
+    }
+    autoscaler = {
+      max_instances = 4
+    }
+  }
+}
+```
+
+- **Executor defaults:** `instance` runs the job on the VM itself and defaults to `max_use_count = 1`, so every VM is single-use. `docker-autoscaler` keeps the per-architecture default of 10.
+- **`privileged`:** with `docker-autoscaler` it sets `[runners.docker] privileged = true`; narrow it with `docker.allowed_privileged_images`. With `instance` it connects as `root` unless `connector.username` says otherwise.
+- **`instance.user_data`:** goes on the pool's launch template as given. The instance executor needs `git`, the `gitlab-runner` binary (for artifacts and cache) and SSH through EC2 Instance Connect for the connector's user on the VM; install them here or bake them into the AMI.
+- **Tokens:** each pool's token is checked against GitLab at the Manager's boot. Under `on_invalid_token = "skip"` (the default), a pool whose token is missing or invalid is left out of `config.toml` and the other runners start. Under `fail` the boot exits, as it does for the per-architecture runners. Tags and "run untagged jobs" belong to the runner's registration in GitLab, not to this module.
+- **Changes replace the Manager:** adding, changing or removing a pool changes the Manager's user data, which replaces it once; jobs running on it at that moment are cut off. `runner_manager.maximum_concurrent_jobs` is global and shared by every runner, so raise it when adding pools.
+- **No state moves:** the per-architecture resources keep their keys. With `runner_pools = {}` (the default) a plan shows no changes.
+
 ## Upgrading from 2.0.x
 
 The runner and manager security groups no longer have inline `ingress` and `egress` blocks. Every rule is now a standalone `aws_vpc_security_group_ingress_rule` or `aws_vpc_security_group_egress_rule` resource. With inline rules, the manager's egress to the runner security group would form a cycle with the runner's ingress from the manager security group.

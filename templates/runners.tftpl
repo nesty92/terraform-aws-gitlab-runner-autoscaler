@@ -1,0 +1,49 @@
+%{~ for config in runners_autoscaling ~}
+
+[[runners]]
+    name = "${config.name}"
+    url = "${config.url}"
+    token = "${config.token}"
+    shell = "${config.shell}"
+    %{~ if request_concurrency != null ~}
+    request_concurrency = ${request_concurrency}
+    %{~ endif ~}
+
+    executor = "${config.executor}"
+
+    [runners.feature_flags]
+    %{~ for key, value in feature_flags ~}
+      ${key} = ${jsonencode(value)}
+    %{~ endfor ~}
+
+    %{~ if config.docker != null ~}
+    [runners.docker]
+    %{~ for key, value in config.docker ~}
+      ${key} = ${jsonencode(value)}
+    %{~ endfor ~}
+    %{~ endif ~}
+
+    [runners.autoscaler]
+      plugin = "${config.plugin}"
+
+    %{~ for key, value in config.autoscaler ~}
+      ${key} = ${jsonencode(value)}
+    %{~ endfor ~}
+
+      [runners.autoscaler.plugin_config]
+      %{~ for key, value in config.plugin_config ~}
+        ${key} = ${jsonencode(value)}
+      %{~ endfor ~}
+
+      [runners.autoscaler.connector_config]
+      %{~ for key, value in config.connector_config ~}
+        ${key} = ${jsonencode(value)}
+      %{~ endfor ~}
+
+    %{~ for index, policy in config.policy ~}
+      [[runners.autoscaler.policy]]
+      %{~ for key, value in policy ~}
+        ${key} = ${jsonencode(value)}
+      %{~ endfor ~}
+    %{~ endfor ~}
+%{~ endfor ~}

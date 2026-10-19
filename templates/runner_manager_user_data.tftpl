@@ -53,6 +53,34 @@ fi
 # Replace the token in the config.toml
 sed -i.bak s/"${token.name}"/"$token"/g /etc/gitlab-runner/config.toml
 %{ endfor ~}
+%{ for pool in runner_pools ~}
+
+# Runner pool ${pool.key}: appended to config.toml only once its token checks out
+token=$(aws ssm get-parameters --names "${pool.token.name}" --with-decryption --region "${pool.token.region}" | jq -r ".Parameters | .[0] | .Value")
+
+valid_token=false
+if [[ "$token" != "null" ]]
+then
+    valid_token_response=$(curl -s -o /dev/null -w "%%{response_code}" --request POST -L "${runners_gitlab_url}/api/v4/runners/verify" --form "token=$token" )
+    [[ "$valid_token_response" == "200" ]] && valid_token=true
+fi
+
+if [[ "$valid_token" == "true" ]]
+then
+cat >> /etc/gitlab-runner/config.toml <<- 'EOF'
+${pool.config}
+EOF
+    sed -i.bak "s/${pool.placeholder}/$token/g" /etc/gitlab-runner/config.toml
+%{ if pool.on_invalid_token == "fail" ~}
+else
+    echo "Invalid token for runner pool ${pool.key}"
+    exit 1
+%{ else ~}
+else
+    echo "Invalid token for runner pool ${pool.key}; leaving it out of config.toml"
+%{ endif ~}
+fi
+%{ endfor ~}
 
 mkdir -p /etc/systemd/system/gitlab-runner.service.d
 # Set the AWS default region to the region of the instance

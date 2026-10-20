@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.1.0...3.2.0) (2026-10-20)
+
+
+### Features
+
+* let a runner group choose its spot allocation strategy ([#34](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/issues/34)) ([f2095ca](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/f2095ca0b31500e5baefe0043b92af4f0c942721))
+
 ## [3.1.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.0.1...3.1.0) (2026-10-19)
 
 

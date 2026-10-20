@@ -387,7 +387,7 @@ resource "aws_autoscaling_group" "gitlab_runner_instance" {
       instances_distribution {
         on_demand_base_capacity                  = 0
         on_demand_percentage_above_base_capacity = 0
-        spot_allocation_strategy                 = "price-capacity-optimized"
+        spot_allocation_strategy                 = local.pool_instances[each.key].spot_allocation_strategy
         spot_max_price                           = local.runner_spot_max_price[each.key]
       }
 

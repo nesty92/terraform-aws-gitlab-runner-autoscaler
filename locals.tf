@@ -141,6 +141,7 @@ locals {
       private_address_only        = pool.instance.private_address_only
       block_device_mappings       = pool.instance.block_device_mappings
       spot_price                  = pool.instance.spot_price
+      spot_allocation_strategy    = pool.instance.spot_allocation_strategy
       ssm_access                  = pool.instance.ssm_access
       type                        = pool.instance.type
       instance_type_overrides     = pool.instance.instance_type_overrides

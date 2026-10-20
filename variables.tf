@@ -515,7 +515,7 @@ variable "runner_instance_amd64" {
   default = null
 
   validation {
-    condition     = var.runner_instance_amd64 == null || contains(["price-capacity-optimized", "capacity-optimized", "capacity-optimized-prioritized", "lowest-price"], var.runner_instance_amd64.spot_allocation_strategy)
+    condition     = var.runner_instance_amd64 == null ? true : contains(["price-capacity-optimized", "capacity-optimized", "capacity-optimized-prioritized", "lowest-price"], var.runner_instance_amd64.spot_allocation_strategy)
     error_message = "spot_allocation_strategy must be price-capacity-optimized, capacity-optimized, capacity-optimized-prioritized or lowest-price."
   }
 }
@@ -552,7 +552,7 @@ variable "runner_instance_arm64" {
   default = null
 
   validation {
-    condition     = var.runner_instance_arm64 == null || contains(["price-capacity-optimized", "capacity-optimized", "capacity-optimized-prioritized", "lowest-price"], var.runner_instance_arm64.spot_allocation_strategy)
+    condition     = var.runner_instance_arm64 == null ? true : contains(["price-capacity-optimized", "capacity-optimized", "capacity-optimized-prioritized", "lowest-price"], var.runner_instance_arm64.spot_allocation_strategy)
     error_message = "spot_allocation_strategy must be price-capacity-optimized, capacity-optimized, capacity-optimized-prioritized or lowest-price."
   }
 

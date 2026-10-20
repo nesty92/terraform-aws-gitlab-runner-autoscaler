@@ -35,7 +35,8 @@ runner_instance_amd64 = {
 ```
 
 - The overrides keep the order given, and `type` is appended unless the list already names it.
-- The policy's instances distribution is 100% spot (`on_demand_base_capacity = 0`, `on_demand_percentage_above_base_capacity = 0`) with the `price-capacity-optimized` allocation strategy. `spot_price`, when set, becomes its `spot_max_price`.
+- The policy's instances distribution is 100% spot (`on_demand_base_capacity = 0`, `on_demand_percentage_above_base_capacity = 0`). `spot_price`, when set, becomes its `spot_max_price`.
+- `spot_allocation_strategy` picks how the group chooses among the listed types: `price-capacity-optimized` (the default) weighs price and the chance of interruption; `capacity-optimized` takes the pools least likely to be interrupted, whatever they cost, which suits long jobs a reclaim would kill; `capacity-optimized-prioritized` does the same but follows the overrides' order where it can; `lowest-price` takes the cheapest. It applies only to a group with overrides.
 - The launch template then omits `instance_market_options`, because AWS refuses a launch template that requests spot itself as the template of a mixed instances policy.
 - An empty list (the default) keeps the plain launch template, unchanged.
 

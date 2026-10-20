@@ -496,6 +496,7 @@ variable "runner_instance_amd64" {
     private_address_only        = optional(bool, true)
     block_device_mappings       = optional(map(string), {})
     spot_price                  = optional(string, null)
+    spot_allocation_strategy    = optional(string, "price-capacity-optimized")
     ssm_access                  = optional(bool, false)
     type                        = optional(string, "t3.micro")
     instance_type_overrides = optional(list(object({
@@ -512,6 +513,11 @@ variable "runner_instance_amd64" {
     }), null)
   })
   default = null
+
+  validation {
+    condition     = var.runner_instance_amd64 == null || contains(["price-capacity-optimized", "capacity-optimized", "capacity-optimized-prioritized", "lowest-price"], var.runner_instance_amd64.spot_allocation_strategy)
+    error_message = "spot_allocation_strategy must be price-capacity-optimized, capacity-optimized, capacity-optimized-prioritized or lowest-price."
+  }
 }
 
 variable "runner_instance_arm64" {
@@ -527,6 +533,7 @@ variable "runner_instance_arm64" {
     private_address_only        = optional(bool, true)
     block_device_mappings       = optional(map(string), {})
     spot_price                  = optional(string, null)
+    spot_allocation_strategy    = optional(string, "price-capacity-optimized")
     ssm_access                  = optional(bool, false)
     type                        = optional(string, "t4g.micro")
     instance_type_overrides = optional(list(object({
@@ -543,6 +550,12 @@ variable "runner_instance_arm64" {
     }), null)
   })
   default = null
+
+  validation {
+    condition     = var.runner_instance_arm64 == null || contains(["price-capacity-optimized", "capacity-optimized", "capacity-optimized-prioritized", "lowest-price"], var.runner_instance_arm64.spot_allocation_strategy)
+    error_message = "spot_allocation_strategy must be price-capacity-optimized, capacity-optimized, capacity-optimized-prioritized or lowest-price."
+  }
+
   validation {
     condition     = var.runner_instance_arm64 != null || !contains(coalesce(var.architectures, []), "arm64")
     error_message = "runner_instance_arm64 is required when arm64 architecture is specified."
@@ -600,6 +613,7 @@ variable "runner_pools" {
       private_address_only        = optional(bool, true)
       block_device_mappings       = optional(map(string), {})
       spot_price                  = optional(string, null)
+      spot_allocation_strategy    = optional(string, "price-capacity-optimized")
       ssm_access                  = optional(bool, false)
       type                        = optional(string, "t3.micro")
       instance_type_overrides = optional(list(object({
@@ -670,6 +684,11 @@ variable "runner_pools" {
   validation {
     condition     = alltrue([for p in values(var.runner_pools) : contains(["docker-autoscaler", "instance"], p.executor)])
     error_message = "A runner pool's executor must be docker-autoscaler or instance."
+  }
+
+  validation {
+    condition     = alltrue([for p in values(var.runner_pools) : contains(["price-capacity-optimized", "capacity-optimized", "capacity-optimized-prioritized", "lowest-price"], p.instance.spot_allocation_strategy)])
+    error_message = "A runner pool's instance.spot_allocation_strategy must be price-capacity-optimized, capacity-optimized, capacity-optimized-prioritized or lowest-price."
   }
 
   validation {

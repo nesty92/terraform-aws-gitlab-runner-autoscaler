@@ -266,3 +266,98 @@ run "a_pool_sharing_a_token_parameter_is_refused" {
 
   expect_failures = [var.runner_pools]
 }
+
+run "a_spot_pool_keeps_price_capacity_optimized_unless_it_names_a_strategy" {
+  command = apply
+
+  variables {
+    runner_pools = {
+      cheap = {
+        architecture = "amd64"
+        executor     = "instance"
+        ami_id       = "ami-machine"
+        token = {
+          name   = "gitlab-runner-cheap-token"
+          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-cheap-token"
+          region = "us-west-2"
+        }
+        instance = {
+          type                    = "m8id.xlarge"
+          instance_type_overrides = [{ instance_type = "m7i.xlarge" }]
+        }
+      }
+      steady = {
+        architecture = "amd64"
+        executor     = "instance"
+        ami_id       = "ami-machine"
+        token = {
+          name   = "gitlab-runner-steady-token"
+          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-steady-token"
+          region = "us-west-2"
+        }
+        instance = {
+          type                     = "m8id.xlarge"
+          instance_type_overrides  = [{ instance_type = "m7i.xlarge" }, { instance_type = "m6id.xlarge" }]
+          spot_allocation_strategy = "capacity-optimized"
+        }
+      }
+    }
+  }
+
+  assert {
+    condition     = aws_autoscaling_group.gitlab_runner_instance["cheap"].mixed_instances_policy[0].instances_distribution[0].spot_allocation_strategy == "price-capacity-optimized"
+    error_message = "A pool that names no strategy keeps price-capacity-optimized."
+  }
+
+  assert {
+    condition     = aws_autoscaling_group.gitlab_runner_instance["steady"].mixed_instances_policy[0].instances_distribution[0].spot_allocation_strategy == "capacity-optimized"
+    error_message = "A pool that names capacity-optimized gets it."
+  }
+
+  assert {
+    condition     = length(aws_autoscaling_group.gitlab_runner_instance["amd64"].mixed_instances_policy) == 0
+    error_message = "A group with no overrides keeps its plain launch template, whatever the strategy."
+  }
+}
+
+run "an_unknown_spot_allocation_strategy_is_refused" {
+  command = plan
+
+  variables {
+    runner_pools = {
+      odd = {
+        architecture = "amd64"
+        executor     = "instance"
+        ami_id       = "ami-machine"
+        token = {
+          name   = "gitlab-runner-odd-token"
+          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-odd-token"
+          region = "us-west-2"
+        }
+        instance = {
+          spot_allocation_strategy = "cheapest-please"
+        }
+      }
+    }
+  }
+
+  expect_failures = [var.runner_pools]
+}
+
+run "an_architecture_runner_can_name_a_strategy" {
+  command = apply
+
+  variables {
+    runner_instance_amd64 = {
+      name_prefix              = "gitlab-runner-amd64"
+      ami_id                   = "ami-amd64"
+      instance_type_overrides  = [{ instance_type = "c6i.large" }]
+      spot_allocation_strategy = "capacity-optimized-prioritized"
+    }
+  }
+
+  assert {
+    condition     = aws_autoscaling_group.gitlab_runner_instance["amd64"].mixed_instances_policy[0].instances_distribution[0].spot_allocation_strategy == "capacity-optimized-prioritized"
+    error_message = "The per-architecture runner takes its strategy too."
+  }
+}

@@ -49,13 +49,13 @@ run "job_variables_reach_every_runner" {
       CI_IMAGES        = "111122223333.dkr.ecr.us-west-2.amazonaws.com/ci"
     }
     runner_pools = {
-      lanebot-e2e = {
+      e2e = {
         architecture = "amd64"
         executor     = "instance"
         ami_id       = "ami-machine"
         token = {
-          name   = "gitlab-runner-lanebot-e2e-token"
-          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-lanebot-e2e-token"
+          name   = "gitlab-runner-e2e-token"
+          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-e2e-token"
           region = "us-west-2"
         }
       }

@@ -59,14 +59,14 @@ run "an_instance_pool_is_single_use_root_and_has_its_own_group" {
 
   variables {
     runner_pools = {
-      lanebot-e2e = {
+      e2e = {
         architecture = "amd64"
         executor     = "instance"
         ami_id       = "ami-machine"
         privileged   = true
         token = {
-          name   = "gitlab-runner-lanebot-e2e-token"
-          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-lanebot-e2e-token"
+          name   = "gitlab-runner-e2e-token"
+          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-e2e-token"
           region = "us-west-2"
         }
         instance = {
@@ -82,22 +82,22 @@ run "an_instance_pool_is_single_use_root_and_has_its_own_group" {
   }
 
   assert {
-    condition     = keys(output.pools) == ["amd64", "lanebot-e2e"]
+    condition     = keys(output.pools) == ["amd64", "e2e"]
     error_message = "The pool is listed after the per-architecture runner."
   }
 
   assert {
-    condition     = aws_launch_template.gitlab_runner_instance["lanebot-e2e"].image_id == "ami-machine"
+    condition     = aws_launch_template.gitlab_runner_instance["e2e"].image_id == "ami-machine"
     error_message = "The pool's launch template boots the pool's AMI."
   }
 
   assert {
-    condition     = aws_launch_template.gitlab_runner_instance["lanebot-e2e"].name == "gitlab-runner-lanebot-e2e"
+    condition     = aws_launch_template.gitlab_runner_instance["e2e"].name == "gitlab-runner-e2e"
     error_message = "The pool's launch template is named after its key when no name_prefix is given."
   }
 
   assert {
-    condition     = base64decode(aws_launch_template.gitlab_runner_instance["lanebot-e2e"].user_data) == "#!/bin/sh\necho ready\n"
+    condition     = base64decode(aws_launch_template.gitlab_runner_instance["e2e"].user_data) == "#!/bin/sh\necho ready\n"
     error_message = "The pool's user data is put on its launch template as given."
   }
 
@@ -107,22 +107,22 @@ run "an_instance_pool_is_single_use_root_and_has_its_own_group" {
   }
 
   assert {
-    condition     = aws_autoscaling_group.gitlab_runner_instance["lanebot-e2e"].name == "gitlab-runner-lanebot-e2e-asg"
+    condition     = aws_autoscaling_group.gitlab_runner_instance["e2e"].name == "gitlab-runner-e2e-asg"
     error_message = "The pool has its own Auto Scaling group."
   }
 
   assert {
-    condition     = aws_autoscaling_group.gitlab_runner_instance["lanebot-e2e"].max_size == 4
+    condition     = aws_autoscaling_group.gitlab_runner_instance["e2e"].max_size == 4
     error_message = "The pool's group is sized by its max_instances."
   }
 
   assert {
-    condition     = sort(aws_autoscaling_group.gitlab_runner_instance["lanebot-e2e"].vpc_zone_identifier) == sort(["subnet-e2e"])
+    condition     = sort(aws_autoscaling_group.gitlab_runner_instance["e2e"].vpc_zone_identifier) == sort(["subnet-e2e"])
     error_message = "The pool's group uses the pool's subnets."
   }
 
   assert {
-    condition     = aws_autoscaling_group.gitlab_runner_instance["lanebot-e2e"].protect_from_scale_in
+    condition     = aws_autoscaling_group.gitlab_runner_instance["e2e"].protect_from_scale_in
     error_message = "The pool's group protects its instances from scale-in like every runner group."
   }
 
@@ -142,7 +142,7 @@ run "an_instance_pool_is_single_use_root_and_has_its_own_group" {
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "token = \"__RUNNER_TOKEN_LANEBOT_E2E__\"")
+    condition     = strcontains(aws_instance.runner_manager.user_data, "token = \"__RUNNER_TOKEN_E2E__\"")
     error_message = "The pool's token is a fixed placeholder in its config."
   }
 
@@ -152,12 +152,12 @@ run "an_instance_pool_is_single_use_root_and_has_its_own_group" {
   }
 
   assert {
-    condition     = strcontains(aws_iam_role_policy.gitlab_runner_manager.policy, "gitlab-runner-lanebot-e2e-asg")
+    condition     = strcontains(aws_iam_role_policy.gitlab_runner_manager.policy, "gitlab-runner-e2e-asg")
     error_message = "The Manager may connect to the pool's instances."
   }
 
   assert {
-    condition     = strcontains(aws_iam_role_policy.ssm_read_runner_tokens.policy, "gitlab-runner-lanebot-e2e-token")
+    condition     = strcontains(aws_iam_role_policy.ssm_read_runner_tokens.policy, "gitlab-runner-e2e-token")
     error_message = "The Manager may read the pool's token."
   }
 }

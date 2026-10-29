@@ -63,13 +63,13 @@ run "ecr_job_images_signs_pulls_with_the_managers_role" {
       pull_through_cache_arns = ["arn:aws:ecr:us-west-2:111122223333:repository/docker-hub/*"]
     }
     runner_pools = {
-      lanebot-e2e = {
+      e2e = {
         architecture = "amd64"
         executor     = "instance"
         ami_id       = "ami-machine"
         token = {
-          name   = "gitlab-runner-lanebot-e2e-token"
-          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-lanebot-e2e-token"
+          name   = "gitlab-runner-e2e-token"
+          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-e2e-token"
           region = "us-west-2"
         }
       }

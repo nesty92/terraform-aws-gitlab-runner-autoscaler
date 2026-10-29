@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.4.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.3.0...3.4.0) (2026-10-29)
+
+
+### Features
+
+* let a consumer set variables on every job the runners take ([#38](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/issues/38)) ([a13d529](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/a13d5294520ba4fa36c1c1b765aff1adbe80b05b))
+
 ## [3.3.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.2.0...3.3.0) (2026-10-29)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.2.0...3.3.0) (2026-10-29)
+
+
+### Features
+
+* let jobs pull their images from this account's ECR with no login in CI ([#36](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/issues/36)) ([4d0c707](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/4d0c707794efbd9fcd686a4a23bf45df96410533))
+
 ## [3.2.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.1.0...3.2.0) (2026-10-20)
 
 

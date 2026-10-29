@@ -117,6 +117,26 @@ variable "ecr_job_images" {
   default = null
 }
 
+variable "job_variables" {
+  description = <<-EOT
+    Variables set on every job the runners take, through each [[runners]] entry's environment. The runner, not GitLab,
+    expands image and services names, so these can name a job's image: image: $DOCKER_HUB_CACHE/library/golang:1.25.
+    A CI/CD variable of the same name, from the project, the group or .gitlab-ci.yml, wins over these.
+  EOT
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition     = alltrue([for key in keys(var.job_variables) : can(regex("^[A-Za-z_][A-Za-z0-9_]*$", key))])
+    error_message = "Each job_variables key must be a variable name: letters, digits and underscores, not starting with a digit."
+  }
+
+  validation {
+    condition     = !contains(keys(var.job_variables), "DOCKER_AUTH_CONFIG")
+    error_message = "DOCKER_AUTH_CONFIG is the module's to set, through ecr_job_images."
+  }
+}
+
 variable "runner_manager_instance_type" {
   description = "EC2 instance type for the Runner Manager. Must support EBS optimization."
   type        = string

@@ -156,6 +156,52 @@ resource "aws_iam_role_policy" "gitlab_runner_manager" {
   })
 }
 
+# What the credential helper signs job image pulls with (ecr_job_images).
+resource "aws_iam_role_policy" "ecr_job_images" {
+  count = var.ecr_job_images == null ? 0 : 1
+
+  name = format("gitlab-runner-manager-ecr-job-images-%s", var.environment)
+  role = aws_iam_role.runner_manager.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = concat(
+      [
+        {
+          Sid      = "LogInToTheRegistry"
+          Effect   = "Allow"
+          Action   = "ecr:GetAuthorizationToken"
+          Resource = "*"
+        },
+        {
+          Sid    = "PullJobImages"
+          Effect = "Allow"
+          Action = [
+            "ecr:BatchCheckLayerAvailability",
+            "ecr:BatchGetImage",
+            "ecr:GetDownloadUrlForLayer",
+          ]
+          Resource = concat(var.ecr_job_images.repository_arns, var.ecr_job_images.pull_through_cache_arns)
+        },
+      ],
+      # A first pull through a cache creates its repository and copies the
+      # image down from the upstream.
+      length(var.ecr_job_images.pull_through_cache_arns) == 0 ? [] : [
+        {
+          Sid    = "FillThePullThroughCache"
+          Effect = "Allow"
+          Action = [
+            "ecr:BatchImportUpstreamImage",
+            "ecr:CreateRepository",
+            "ecr:TagResource",
+          ]
+          Resource = var.ecr_job_images.pull_through_cache_arns
+        },
+      ],
+    )
+  })
+}
+
 resource "aws_iam_instance_profile" "runner_manager" {
   name = format("gitlab-runner-manager-%s", var.environment)
   role = aws_iam_role.runner_manager.name
@@ -204,6 +250,7 @@ resource "aws_instance" "runner_manager" {
     fleeting_plugin_aws_version = var.fleeting_plugin_aws_version
     gitlab_runner_version       = var.gitlab_runner_version
     enable_ssm_agent            = var.runner_manager.enable_ssm_agent
+    ecr_credential_helper       = var.ecr_job_images != null
   })
   user_data_replace_on_change = true
 

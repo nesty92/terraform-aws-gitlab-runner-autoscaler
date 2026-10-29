@@ -187,6 +187,8 @@ locals {
       plugin   = "fleeting-plugin-aws"
       executor = pool.executor
 
+      environment = pool.executor == "docker-autoscaler" ? local.docker_runner_environment : []
+
       docker = pool.executor != "docker-autoscaler" ? null : merge(
         { for k, v in coalesce(pool.docker, {}) : k => v if v != null },
         pool.privileged ? { privileged = true } : {},
@@ -204,6 +206,13 @@ locals {
       policy = [for policy in pool.policy : { for k, v in policy : k => v if v != null }]
     }
   }
+
+  # A [[runners]] entry's environment: with ecr_job_images, the runner resolves
+  # this account's registry through the credential helper on the Manager.
+  ecr_registry = format("%s.dkr.ecr.%s.amazonaws.com", data.aws_caller_identity.current.account_id, data.aws_region.current.name)
+  docker_runner_environment = var.ecr_job_images == null ? [] : [
+    format("DOCKER_AUTH_CONFIG=%s", jsonencode({ credHelpers = { (local.ecr_registry) = "ecr-login" } })),
+  ]
 
   runner_manager_template_vars = {
     request_concurrency = var.runner_manager.request_concurrency
@@ -232,6 +241,8 @@ locals {
       shell    = "sh"
       plugin   = "fleeting-plugin-aws"
       executor = "docker-autoscaler"
+
+      environment = local.docker_runner_environment
 
       docker           = local.runner_docker_options[arch]
       autoscaler       = local.runner_autoscaler_options[arch]

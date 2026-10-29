@@ -166,6 +166,7 @@ No modules.
 | [aws_autoscaling_group.gitlab_runner_instance](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/autoscaling_group) | resource |
 | [aws_iam_instance_profile.runner_manager](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile) | resource |
 | [aws_iam_role.runner_manager](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
+| [aws_iam_role_policy.ecr_job_images](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
 | [aws_iam_role_policy.gitlab_runner_manager](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
 | [aws_iam_role_policy.ssm_read_runner_tokens](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
 | [aws_iam_role_policy_attachment.runner_manager_ssm_managed_instance_core](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
@@ -188,6 +189,7 @@ No modules.
 | <a name="input_architectures"></a> [architectures](#input\_architectures) | The architectures that the Runner will support (e.g., arm64, amd64). Each specified architecture requires its corresponding runner\_instance configuration. | `list(string)` | n/a | yes |
 | <a name="input_aws_subnet_ids"></a> [aws\_subnet\_ids](#input\_aws\_subnet\_ids) | n/a | `list(string)` | n/a | yes |
 | <a name="input_aws_vpc_id"></a> [aws\_vpc\_id](#input\_aws\_vpc\_id) | n/a | `string` | n/a | yes |
+| <a name="input_ecr_job_images"></a> [ecr\_job\_images](#input\_ecr\_job\_images) | Lets jobs on the docker-autoscaler runners use images from this account's ECR with no login in CI. The Manager installs<br/>amazon-ecr-credential-helper and signs each pull with its own role; the instances need no ECR access, since the layers<br/>come from S3 URLs the registry hands out.<br/><br/>repository\_arns = The ECR repositories (wildcards allowed) a job may pull its image and services from.<br/>pull\_through\_cache\_arns = Pull-through cache repositories. A job may pull from them too, and its first pull of an<br/>                          image may create the repository and copy the image from the upstream. | <pre>object({<br/>    repository_arns         = list(string)<br/>    pull_through_cache_arns = optional(list(string), [])<br/>  })</pre> | `null` | no |
 | <a name="input_environment"></a> [environment](#input\_environment) | A name that identifies the environment, used as a prefix for tagging resources | `string` | n/a | yes |
 | <a name="input_fleeting_plugin_aws_version"></a> [fleeting\_plugin\_aws\_version](#input\_fleeting\_plugin\_aws\_version) | The version of the AWS Fleeting plugin to install. | `string` | n/a | yes |
 | <a name="input_gitlab_instance_url"></a> [gitlab\_instance\_url](#input\_gitlab\_instance\_url) | The URL of the GitLab instance | `string` | `"https://gitlab.com"` | no |

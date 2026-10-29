@@ -100,6 +100,23 @@ variable "runner_manager" {
   default = {}
 }
 
+variable "ecr_job_images" {
+  description = <<-EOT
+    Lets jobs on the docker-autoscaler runners use images from this account's ECR with no login in CI. The Manager installs
+    amazon-ecr-credential-helper and signs each pull with its own role; the instances need no ECR access, since the layers
+    come from S3 URLs the registry hands out.
+
+    repository_arns = The ECR repositories (wildcards allowed) a job may pull its image and services from.
+    pull_through_cache_arns = Pull-through cache repositories. A job may pull from them too, and its first pull of an
+                              image may create the repository and copy the image from the upstream.
+  EOT
+  type = object({
+    repository_arns         = list(string)
+    pull_through_cache_arns = optional(list(string), [])
+  })
+  default = null
+}
+
 variable "runner_manager_instance_type" {
   description = "EC2 instance type for the Runner Manager. Must support EBS optimization."
   type        = string

@@ -7,6 +7,16 @@ do
     yum install -y jq && break || sleep 60
 done
 
+%{ if ecr_credential_helper ~}
+# Sign pulls from this account's ECR with the Manager's role
+amazon-linux-extras enable docker
+for i in {1..7}
+do
+    echo "Attempt: ---- " $i
+    yum install -y amazon-ecr-credential-helper && break || sleep 60
+done
+
+%{ endif ~}
 # Install gitlab-runner if not installed
 if ! ( rpm -q gitlab-runner >/dev/null )
 then

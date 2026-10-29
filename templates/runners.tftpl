@@ -10,6 +10,9 @@
     %{~ endif ~}
 
     executor = "${config.executor}"
+    %{~ if length(config.environment) > 0 ~}
+    environment = ${jsonencode(config.environment)}
+    %{~ endif ~}
 
     [runners.feature_flags]
     %{~ for key, value in feature_flags ~}

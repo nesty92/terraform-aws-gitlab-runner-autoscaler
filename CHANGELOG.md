@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.5.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.4.0...3.5.0) (2026-11-02)
+
+
+### Features
+
+* let every runner share one job cache in S3 ([#42](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/issues/42)) ([7578263](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/75782631b69c65256d72d844745c11edb8fa72a6))
+
 ## [3.4.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.3.0...3.4.0) (2026-10-29)
 
 

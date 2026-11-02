@@ -219,8 +219,25 @@ locals {
     local.runner_environment,
   )
 
+  runner_cache_path   = var.runner_cache == null ? "" : trim(var.runner_cache.path, "/")
+  runner_cache_bucket = var.runner_cache == null ? null : format("arn:aws:s3:::%s", var.runner_cache.s3.bucket_name)
+
+  # What every [[runners]] entry's [runners.cache] is rendered from. The
+  # template leaves out a null key, so the runner keeps its own default.
+  runner_cache = var.runner_cache == null ? null : {
+    path                          = local.runner_cache_path
+    shared                        = var.runner_cache.shared
+    max_uploaded_archive_size     = var.runner_cache.max_uploaded_archive_size
+    bucket_name                   = var.runner_cache.s3.bucket_name
+    bucket_region                 = coalesce(var.runner_cache.s3.bucket_region, data.aws_region.current.name)
+    server_side_encryption        = var.runner_cache.s3.server_side_encryption
+    server_side_encryption_key_id = var.runner_cache.s3.server_side_encryption_key_id
+    dual_stack                    = var.runner_cache.s3.dual_stack
+  }
+
   runner_manager_template_vars = {
     request_concurrency = var.runner_manager.request_concurrency
+    cache               = local.runner_cache
 
     # The module's own flag first, so a consumer's entry for the same key wins.
     feature_flags = merge(

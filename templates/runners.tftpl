@@ -19,6 +19,30 @@
       ${key} = ${jsonencode(value)}
     %{~ endfor ~}
 
+    %{~ if cache != null ~}
+    [runners.cache]
+      Type = "s3"
+      %{~ if cache.path != "" ~}
+      Path = ${jsonencode(cache.path)}
+      %{~ endif ~}
+      Shared = ${cache.shared}
+      MaxUploadedArchiveSize = ${cache.max_uploaded_archive_size}
+
+      [runners.cache.s3]
+        BucketName = ${jsonencode(cache.bucket_name)}
+        BucketLocation = ${jsonencode(cache.bucket_region)}
+        AuthenticationType = "iam"
+        %{~ if cache.server_side_encryption != null ~}
+        ServerSideEncryption = ${jsonencode(cache.server_side_encryption)}
+        %{~ endif ~}
+        %{~ if cache.server_side_encryption_key_id != null ~}
+        ServerSideEncryptionKeyID = ${jsonencode(cache.server_side_encryption_key_id)}
+        %{~ endif ~}
+        %{~ if cache.dual_stack != null ~}
+        DualStack = ${cache.dual_stack}
+        %{~ endif ~}
+    %{~ endif ~}
+
     %{~ if config.docker != null ~}
     [runners.docker]
     %{~ for key, value in config.docker ~}

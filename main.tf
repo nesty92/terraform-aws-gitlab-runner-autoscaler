@@ -202,6 +202,44 @@ resource "aws_iam_role_policy" "ecr_job_images" {
   })
 }
 
+# What the Manager signs the jobs' cache uploads and downloads with
+# (runner_cache). A download is a GetObject, and so is the HEAD that asks
+# whether a cache exists.
+resource "aws_iam_role_policy" "runner_cache" {
+  count = var.runner_cache == null ? 0 : 1
+
+  name = format("gitlab-runner-manager-cache-%s", var.environment)
+  role = aws_iam_role.runner_manager.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = concat(
+      [
+        {
+          Sid    = "ReadAndWriteTheJobsCaches"
+          Effect = "Allow"
+          Action = [
+            "s3:GetObject",
+            "s3:PutObject",
+          ]
+          Resource = local.runner_cache_path == "" ? format("%s/*", local.runner_cache_bucket) : format("%s/%s/*", local.runner_cache_bucket, local.runner_cache_path)
+        },
+      ],
+      var.runner_cache.s3.server_side_encryption_key_id == null ? [] : [
+        {
+          Sid    = "EncryptTheJobsCaches"
+          Effect = "Allow"
+          Action = [
+            "kms:Decrypt",
+            "kms:GenerateDataKey",
+          ]
+          Resource = var.runner_cache.s3.server_side_encryption_key_id
+        },
+      ],
+    )
+  })
+}
+
 resource "aws_iam_instance_profile" "runner_manager" {
   name = format("gitlab-runner-manager-%s", var.environment)
   role = aws_iam_role.runner_manager.name

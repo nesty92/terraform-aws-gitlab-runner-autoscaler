@@ -137,6 +137,64 @@ variable "job_variables" {
   }
 }
 
+variable "runner_cache" {
+  description = <<-EOT
+    A cache that the jobs of every runner share ([runners.cache]). Null keeps each instance's local cache. The backend
+    is S3, the one this AWS module can grant its own role to: the Manager signs every upload and download with that
+    role, so neither the instances nor the jobs hold a credential. The bucket is the consumer's, and so is its cleanup:
+    give it a lifecycle rule that expires caches no job has written for a while.
+
+    path                      = A prefix every cache key is written under. Empty writes at the bucket's root.
+    shared                    = One cache for all the runners, rather than one per runner. Defaults to true.
+    max_uploaded_archive_size = The largest cache archive a job may upload, in bytes. A larger one is not uploaded.
+                                0 sets no limit.
+    s3 = {
+      bucket_name                   = The S3 bucket the caches are kept in.
+      bucket_region                 = The bucket's region. Defaults to the module's region.
+      server_side_encryption        = "S3", "KMS" or "DSSE-KMS". Null leaves it to the bucket's default encryption.
+      server_side_encryption_key_id = The KMS key ARN for "KMS" or "DSSE-KMS". The Manager's role may use it.
+      dual_stack                    = Use S3's dual-stack endpoint, the runner's default. false keeps the jobs on the
+                                      regional IPv4 endpoint.
+    }
+  EOT
+  type = object({
+    path                      = optional(string, "")
+    shared                    = optional(bool, true)
+    max_uploaded_archive_size = optional(number, 0)
+    s3 = object({
+      bucket_name                   = string
+      bucket_region                 = optional(string)
+      server_side_encryption        = optional(string)
+      server_side_encryption_key_id = optional(string)
+      dual_stack                    = optional(bool)
+    })
+  })
+  default = null
+
+  validation {
+    condition     = var.runner_cache == null || try(length(trimspace(var.runner_cache.s3.bucket_name)) > 0, false)
+    error_message = "runner_cache.s3.bucket_name must name a bucket."
+  }
+
+  validation {
+    condition     = var.runner_cache == null || try(var.runner_cache.max_uploaded_archive_size >= 0 && floor(var.runner_cache.max_uploaded_archive_size) == var.runner_cache.max_uploaded_archive_size, false)
+    error_message = "runner_cache.max_uploaded_archive_size is a whole number of bytes, 0 for no limit."
+  }
+
+  validation {
+    condition     = var.runner_cache == null || try(contains(["S3", "KMS", "DSSE-KMS"], var.runner_cache.s3.server_side_encryption), var.runner_cache.s3.server_side_encryption == null)
+    error_message = "runner_cache.s3.server_side_encryption is \"S3\", \"KMS\", \"DSSE-KMS\" or null."
+  }
+
+  validation {
+    condition = var.runner_cache == null || (
+      contains(["KMS", "DSSE-KMS"], coalesce(var.runner_cache.s3.server_side_encryption, "none"))
+      == (var.runner_cache.s3.server_side_encryption_key_id != null)
+    )
+    error_message = "runner_cache.s3.server_side_encryption_key_id is set with \"KMS\" or \"DSSE-KMS\", and only then."
+  }
+}
+
 variable "runner_manager_instance_type" {
   description = "EC2 instance type for the Runner Manager. Must support EBS optimization."
   type        = string

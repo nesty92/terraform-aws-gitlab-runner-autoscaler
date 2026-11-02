@@ -74,6 +74,27 @@ runner_pools = {
 - **Changes replace the Manager:** adding, changing or removing a pool changes the Manager's user data, which replaces it once; jobs running on it at that moment are cut off. `runner_manager.maximum_concurrent_jobs` is global and shared by every runner, so raise it when adding pools.
 - **No state moves:** the per-architecture resources keep their keys. With `runner_pools = {}` (the default) a plan shows no changes.
 
+## Shared Cache
+
+Each runner VM keeps its cache on its own disk, so a fresh or replaced VM starts empty and every job on it downloads its dependencies again. `runner_cache` gives every runner, the pools included, one `[runners.cache]` in S3 instead. The Manager signs each cache upload and download with its own role (`AuthenticationType = "iam"`), so the instances and the jobs hold no credential, and the module grants that role `s3:GetObject` and `s3:PutObject` under the cache's path only.
+
+```hcl
+runner_cache = {
+  path                      = "jobs"
+  max_uploaded_archive_size = 2147483648
+  s3 = {
+    bucket_name = aws_s3_bucket.runner_cache.id
+    dual_stack  = false
+  }
+}
+```
+
+- **The bucket is yours, and so is its cleanup.** The module creates no bucket. Give it a lifecycle rule that expires objects some days after they were last written: a cache a job still uses is written again by the jobs that update it, so the rule removes only caches nobody writes any more. Also abort incomplete multipart uploads, and block public access.
+- **`max_uploaded_archive_size`** caps a single cache archive, in bytes. A job whose archive is larger skips the upload and keeps going. 0, the default, sets no limit.
+- **`shared`** (default `true`) is one cache for all the runners, keyed by project and cache key. `false` gives each runner its own.
+- **Traffic:** from a VPC with an S3 gateway endpoint, the cache moves over the endpoint instead of a NAT gateway. Set `dual_stack = false` if your route tables send only S3's IPv4 ranges to it.
+- **Changes replace the Manager**, as with runner pools: the cache settings live in its user data.
+
 ## Upgrading from 2.0.x
 
 The runner and manager security groups no longer have inline `ingress` and `egress` blocks. Every rule is now a standalone `aws_vpc_security_group_ingress_rule` or `aws_vpc_security_group_egress_rule` resource. With inline rules, the manager's egress to the runner security group would form a cycle with the runner's ingress from the manager security group.

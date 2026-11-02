@@ -172,22 +172,22 @@ variable "runner_cache" {
   default = null
 
   validation {
-    condition     = var.runner_cache == null || try(length(trimspace(var.runner_cache.s3.bucket_name)) > 0, false)
+    condition     = var.runner_cache == null ? true : try(length(trimspace(var.runner_cache.s3.bucket_name)) > 0, false)
     error_message = "runner_cache.s3.bucket_name must name a bucket."
   }
 
   validation {
-    condition     = var.runner_cache == null || try(var.runner_cache.max_uploaded_archive_size >= 0 && floor(var.runner_cache.max_uploaded_archive_size) == var.runner_cache.max_uploaded_archive_size, false)
+    condition     = var.runner_cache == null ? true : try(var.runner_cache.max_uploaded_archive_size >= 0 && floor(var.runner_cache.max_uploaded_archive_size) == var.runner_cache.max_uploaded_archive_size, false)
     error_message = "runner_cache.max_uploaded_archive_size is a whole number of bytes, 0 for no limit."
   }
 
   validation {
-    condition     = var.runner_cache == null || try(contains(["S3", "KMS", "DSSE-KMS"], var.runner_cache.s3.server_side_encryption), var.runner_cache.s3.server_side_encryption == null)
+    condition     = var.runner_cache == null ? true : (var.runner_cache.s3.server_side_encryption == null ? true : contains(["S3", "KMS", "DSSE-KMS"], var.runner_cache.s3.server_side_encryption))
     error_message = "runner_cache.s3.server_side_encryption is \"S3\", \"KMS\", \"DSSE-KMS\" or null."
   }
 
   validation {
-    condition = var.runner_cache == null || (
+    condition = var.runner_cache == null ? true : (
       contains(["KMS", "DSSE-KMS"], coalesce(var.runner_cache.s3.server_side_encryption, "none"))
       == (var.runner_cache.s3.server_side_encryption_key_id != null)
     )

@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.7.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.6.0...3.7.0) (2026-11-03)
+
+
+### Features
+
+* let a runner pool set an absolute builds_dir, and the Manager list the cache bucket ([#46](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/issues/46)) ([2f59b99](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/2f59b99a43639094d809240def5599292a667551))
+
 ## [3.6.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.5.0...3.6.0) (2026-11-03)
 
 

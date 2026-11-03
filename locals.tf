@@ -186,12 +186,13 @@ locals {
 
   pool_runner_entries = {
     for key, pool in var.runner_pools : key => {
-      name     = format("runner-%s", key)
-      url      = var.gitlab_instance_url
-      token    = local.pool_token_placeholders[key]
-      shell    = "sh"
-      plugin   = "fleeting-plugin-aws"
-      executor = pool.executor
+      name       = format("runner-%s", key)
+      url        = var.gitlab_instance_url
+      token      = local.pool_token_placeholders[key]
+      shell      = "sh"
+      plugin     = "fleeting-plugin-aws"
+      executor   = pool.executor
+      builds_dir = pool.builds_dir
 
       environment = pool.executor == "docker-autoscaler" ? local.docker_runner_environment : local.runner_environment
 

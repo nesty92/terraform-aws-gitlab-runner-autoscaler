@@ -101,8 +101,15 @@ run "every_runner_shares_the_cache" {
         Action   = ["s3:GetObject", "s3:PutObject"]
         Resource = "arn:aws:s3:::example-runner-cache/jobs/*"
       },
+      {
+        Sid       = "TellAMissingCacheFromARefusedOne"
+        Effect    = "Allow"
+        Action    = "s3:ListBucket"
+        Resource  = "arn:aws:s3:::example-runner-cache"
+        Condition = { StringLike = { "s3:prefix" = ["jobs/*"] } }
+      },
     ]
-    error_message = "The Manager may read and write the caches under the path, and nothing else."
+    error_message = "The Manager may read and write the caches under the path, and list only under it, and nothing else."
   }
 }
 
@@ -148,6 +155,12 @@ run "a_kms_encrypted_cache" {
         Effect   = "Allow"
         Action   = ["s3:GetObject", "s3:PutObject"]
         Resource = "arn:aws:s3:::example-runner-cache/*"
+      },
+      {
+        Sid      = "TellAMissingCacheFromARefusedOne"
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
+        Resource = "arn:aws:s3:::example-runner-cache"
       },
       {
         Sid      = "EncryptTheJobsCaches"

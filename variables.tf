@@ -683,6 +683,9 @@ variable "runner_pools" {
       runner's registration in GitLab, not to this module.
     on_invalid_token = skip (default): a missing or invalid token leaves this pool out of config.toml and the Manager
       starts the other runners; fail: the Manager's boot exits, as it does for the per-architecture runners.
+    builds_dir = An absolute [[runners]] builds_dir. Unset, the runner's own default applies. The instance executor's default is
+      relative, and a relative builds directory breaks the runner's cache upload, which resolves its temporary files
+      against the project directory; give an instance pool that uses runner_cache an absolute one.
     privileged = With docker-autoscaler, sets [runners.docker] privileged = true; with instance, connects as root unless
       connector.username says otherwise.
     instance = Launch settings, as runner_instance_amd64 without ami_id, plus user_data (plain text, put on the pool's
@@ -708,6 +711,7 @@ variable "runner_pools" {
       region = string
     })
     on_invalid_token = optional(string, "skip")
+    builds_dir       = optional(string)
     privileged       = optional(bool, false)
 
     instance = optional(object({
@@ -819,5 +823,10 @@ variable "runner_pools" {
       [for t in [var.runner_ssm_token_amd64, var.runner_ssm_token_arm64] : t.name if t != null],
     ))) == length(var.runner_pools) + length([for t in [var.runner_ssm_token_amd64, var.runner_ssm_token_arm64] : t if t != null])
     error_message = "Every runner pool needs its own token parameter, distinct from the other pools' and the per-architecture runners'."
+  }
+
+  validation {
+    condition     = alltrue([for pool in values(var.runner_pools) : pool.builds_dir == null ? true : startswith(pool.builds_dir, "/")])
+    error_message = "builds_dir must be an absolute path."
   }
 }

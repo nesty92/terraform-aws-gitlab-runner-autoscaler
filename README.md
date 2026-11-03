@@ -74,6 +74,22 @@ runner_pools = {
 - **Changes replace the Manager:** adding, changing or removing a pool changes the Manager's user data, which replaces it once; jobs running on it at that moment are cut off. `runner_manager.maximum_concurrent_jobs` is global and shared by every runner, so raise it when adding pools.
 - **No state moves:** the per-architecture resources keep their keys. With `runner_pools = {}` (the default) a plan shows no changes.
 
+## Runner Subnets
+
+The Manager and the runners launch into `aws_subnet_ids` unless told otherwise. `runner_instance_amd64` and `runner_instance_arm64` take an optional `subnet_ids` that moves that architecture's Auto Scaling group to other subnets, as a runner pool's `instance.subnet_ids` does; left unset, nothing changes. The Manager always stays in the first of `aws_subnet_ids`.
+
+```hcl
+runner_instance_amd64 = {
+  ami_id               = var.runner_ami_amd64
+  subnet_ids           = module.vpc.public_subnets
+  private_address_only = false
+}
+```
+
+- **Public subnets without a NAT gateway:** put the runners in public subnets with `private_address_only = false`, so each instance gets a public IPv4 and reaches the internet through the internet gateway rather than a NAT gateway, and keep the Manager private. The Manager still connects to the instances over their private addresses (the connector's `use_external_addr` stays `false`), and the runner security group admits nothing but the Manager, so the instances accept no connection from the internet.
+- **An instance in a public subnet with no public IP has no internet access:** the internet gateway forwards only instances that hold a public address.
+- **Changing it** updates the Auto Scaling group in place; instances already running stay where they are until they are replaced.
+
 ## Shared Cache
 
 Each runner VM keeps its cache on its own disk, so a fresh or replaced VM starts empty and every job on it downloads its dependencies again. `runner_cache` gives every runner, the pools included, one `[runners.cache]` in S3 instead. The Manager signs each cache upload and download with its own role (`AuthenticationType = "iam"`), so the instances and the jobs hold no credential, and the module grants that role `s3:GetObject` and `s3:PutObject` under the cache's path only.

@@ -158,9 +158,15 @@ locals {
     for key, pool in var.runner_pools : key => base64encode(pool.instance.user_data) if pool.instance.user_data != null
   }
 
-  pool_subnet_ids = {
-    for key, pool in var.runner_pools : key => pool.instance.subnet_ids if pool.instance.subnet_ids != null
-  }
+  pool_subnet_ids = merge(
+    {
+      for arch, instance in local.runner_instances : arch => instance.subnet_ids
+      if instance != null && try(instance.subnet_ids, null) != null
+    },
+    {
+      for key, pool in var.runner_pools : key => pool.instance.subnet_ids if pool.instance.subnet_ids != null
+    },
+  )
 
   custom_pool_autoscaler_options = {
     for key, pool in var.runner_pools : key => merge(

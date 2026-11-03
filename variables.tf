@@ -579,7 +579,7 @@ variable "runner_autoscaler_policy_arm64" {
 
 
 variable "runner_instance_amd64" {
-  description = "Configuration for the AMD64 GitLab Runner instance. Required when amd64 architecture is specified."
+  description = "Configuration for the AMD64 GitLab Runner instance. Required when amd64 architecture is specified. subnet_ids, when set, are the subnets its Auto Scaling group launches into; unset, it uses aws_subnet_ids."
   type = object({
     ami_id                      = string
     additional_tags             = optional(map(string))
@@ -600,6 +600,7 @@ variable "runner_instance_amd64" {
     use_eip              = optional(bool, false)
     iam_instance_profile = optional(string)
     security_group_ids   = optional(list(string), [])
+    subnet_ids           = optional(list(string))
     cpu_options = optional(object({
       core_count            = optional(number)
       threads_per_core      = optional(number)
@@ -613,10 +614,15 @@ variable "runner_instance_amd64" {
     condition     = var.runner_instance_amd64 == null ? true : contains(["price-capacity-optimized", "capacity-optimized", "capacity-optimized-prioritized", "lowest-price"], var.runner_instance_amd64.spot_allocation_strategy)
     error_message = "spot_allocation_strategy must be price-capacity-optimized, capacity-optimized, capacity-optimized-prioritized or lowest-price."
   }
+
+  validation {
+    condition     = var.runner_instance_amd64 == null ? true : (var.runner_instance_amd64.subnet_ids == null ? true : length(var.runner_instance_amd64.subnet_ids) > 0)
+    error_message = "subnet_ids, when set, must name at least one subnet."
+  }
 }
 
 variable "runner_instance_arm64" {
-  description = "Configuration for the ARM64 GitLab Runner instance. Required when arm64 architecture is specified."
+  description = "Configuration for the ARM64 GitLab Runner instance. Required when arm64 architecture is specified. subnet_ids, when set, are the subnets its Auto Scaling group launches into; unset, it uses aws_subnet_ids."
   type = object({
     ami_id                      = string
     additional_tags             = optional(map(string))
@@ -637,6 +643,7 @@ variable "runner_instance_arm64" {
     use_eip              = optional(bool, false)
     iam_instance_profile = optional(string)
     security_group_ids   = optional(list(string), [])
+    subnet_ids           = optional(list(string))
     cpu_options = optional(object({
       core_count            = optional(number)
       threads_per_core      = optional(number)
@@ -654,6 +661,11 @@ variable "runner_instance_arm64" {
   validation {
     condition     = var.runner_instance_arm64 != null || !contains(coalesce(var.architectures, []), "arm64")
     error_message = "runner_instance_arm64 is required when arm64 architecture is specified."
+  }
+
+  validation {
+    condition     = var.runner_instance_arm64 == null ? true : (var.runner_instance_arm64.subnet_ids == null ? true : length(var.runner_instance_arm64.subnet_ids) > 0)
+    error_message = "subnet_ids, when set, must name at least one subnet."
   }
 }
 

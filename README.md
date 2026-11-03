@@ -109,6 +109,8 @@ runner_cache = {
 - **`max_uploaded_archive_size`** caps a single cache archive, in bytes. A job whose archive is larger skips the upload and keeps going. 0, the default, sets no limit.
 - **`shared`** (default `true`) is one cache for all the runners, keyed by project and cache key. `false` gives each runner its own.
 - **Traffic:** from a VPC with an S3 gateway endpoint, the cache moves over the endpoint instead of a NAT gateway. Set `dual_stack = false` if your route tables send only S3's IPv4 ranges to it.
+- **A cache miss is a 404:** the module also lets the Manager list the bucket (under the path, when one is set), so S3 answers a missing cache with 404 instead of a 403 the runner logs as `AccessDenied`.
+- **Instance pools need an absolute `builds_dir`:** the instance executor's default builds directory is relative, and the runner resolves the cache upload's temporary files against the project directory, so the upload fails with `gitlab_runner_cache_env: No such file or directory`. Give such a pool `builds_dir = "/root/builds"` (or another absolute path its user can write).
 - **Changes replace the Manager**, as with runner pools: the cache settings live in its user data.
 
 ## Upgrading from 2.0.x

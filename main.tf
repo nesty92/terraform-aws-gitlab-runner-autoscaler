@@ -224,6 +224,19 @@ resource "aws_iam_role_policy" "runner_cache" {
           ]
           Resource = local.runner_cache_path == "" ? format("%s/*", local.runner_cache_bucket) : format("%s/%s/*", local.runner_cache_bucket, local.runner_cache_path)
         },
+        merge(
+          {
+            Sid      = "TellAMissingCacheFromARefusedOne"
+            Effect   = "Allow"
+            Action   = "s3:ListBucket"
+            Resource = local.runner_cache_bucket
+          },
+          local.runner_cache_path == "" ? {} : {
+            Condition = {
+              StringLike = { "s3:prefix" = [format("%s/*", local.runner_cache_path)] }
+            }
+          },
+        ),
       ],
       var.runner_cache.s3.server_side_encryption_key_id == null ? [] : [
         {

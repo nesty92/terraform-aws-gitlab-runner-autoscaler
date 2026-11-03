@@ -361,3 +361,74 @@ run "an_architecture_runner_can_name_a_strategy" {
     error_message = "The per-architecture runner takes its strategy too."
   }
 }
+
+run "an_instance_pool_can_name_an_absolute_builds_dir" {
+  command = plan
+
+  variables {
+    runner_pools = {
+      e2e = {
+        architecture = "amd64"
+        executor     = "instance"
+        ami_id       = "ami-machine"
+        builds_dir   = "/root/builds"
+        token = {
+          name   = "gitlab-runner-e2e-token"
+          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-e2e-token"
+          region = "us-west-2"
+        }
+      }
+    }
+  }
+
+  assert {
+    condition     = length(regexall("builds_dir = \"/root/builds\"", aws_instance.runner_manager.user_data)) == 1
+    error_message = "The pool's [[runners]] entry carries its builds_dir, and no other entry does."
+  }
+}
+
+run "no_builds_dir_by_default" {
+  command = plan
+
+  variables {
+    runner_pools = {
+      e2e = {
+        architecture = "amd64"
+        executor     = "instance"
+        ami_id       = "ami-machine"
+        token = {
+          name   = "gitlab-runner-e2e-token"
+          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-e2e-token"
+          region = "us-west-2"
+        }
+      }
+    }
+  }
+
+  assert {
+    condition     = !strcontains(aws_instance.runner_manager.user_data, "builds_dir")
+    error_message = "Without builds_dir the runner's own default stays."
+  }
+}
+
+run "builds_dir_is_absolute" {
+  command = plan
+
+  variables {
+    runner_pools = {
+      e2e = {
+        architecture = "amd64"
+        executor     = "instance"
+        ami_id       = "ami-machine"
+        builds_dir   = "builds"
+        token = {
+          name   = "gitlab-runner-e2e-token"
+          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-e2e-token"
+          region = "us-west-2"
+        }
+      }
+    }
+  }
+
+  expect_failures = [var.runner_pools]
+}

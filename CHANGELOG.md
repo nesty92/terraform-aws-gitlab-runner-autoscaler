@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.5.0...3.6.0) (2026-11-03)
+
+
+### Features
+
+* let each architecture's runners launch into their own subnets ([#44](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/issues/44)) ([eb27231](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/eb272314a76343d993d039bd609473199d8cf652))
+
 ## [3.5.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.4.0...3.5.0) (2026-11-02)
 
 

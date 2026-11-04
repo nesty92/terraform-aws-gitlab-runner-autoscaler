@@ -13,7 +13,7 @@ cloud-init status --wait >/dev/null || true
 
 apt-get update -q
 apt-get upgrade -y -q
-apt-get install -y -q --no-install-recommends docker.io docker-buildx iptables libicu74 git curl ca-certificates ec2-instance-connect
+apt-get install -y -q --no-install-recommends docker.io docker-buildx iptables libicu74 git zstd curl ca-certificates ec2-instance-connect
 usermod -aG docker "$RUNNER_USER"
 
 mkdir -p /etc/systemd/system/docker.service.d

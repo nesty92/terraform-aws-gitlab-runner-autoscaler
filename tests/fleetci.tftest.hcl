@@ -1,7 +1,4 @@
 mock_provider "aws" {
-  mock_data "aws_ssm_parameter" {
-    defaults = { insecure_value = "ami-ubuntu" }
-  }
   mock_data "aws_region" {
     defaults = { name = "us-west-2" }
   }
@@ -81,12 +78,14 @@ run "classes_get_groups_a_runner_and_an_include" {
       classes = {
         "2vcpu-4gb" = {
           instance_types = ["t3.medium"]
+          ami_id         = "ami-fleetci-amd64"
         }
         "8vcpu-16gb-arm" = {
           architecture   = "arm64"
           instance_types = ["c7g.2xlarge", "c6g.2xlarge"]
           max_instances  = 2
-          ami_id         = "ami-arm"
+          ami_id         = "ami-fleetci-arm64"
+          user_data      = "#!/bin/sh\necho extra\n"
           policy = [{
             periods    = ["* 8-18 * * mon-fri"]
             timezone   = "Europe/Warsaw"
@@ -121,8 +120,8 @@ run "classes_get_groups_a_runner_and_an_include" {
   }
 
   assert {
-    condition     = aws_launch_template.gitlab_runner_instance["fleetci-2vcpu-4gb"].image_id == "ami-ubuntu" && aws_launch_template.gitlab_runner_instance["fleetci-8vcpu-16gb-arm"].image_id == "ami-arm"
-    error_message = "A class without ami_id runs Ubuntu 24.04; ami_id overrides it."
+    condition     = aws_launch_template.gitlab_runner_instance["fleetci-2vcpu-4gb"].image_id == "ami-fleetci-amd64" && aws_launch_template.gitlab_runner_instance["fleetci-8vcpu-16gb-arm"].image_id == "ami-fleetci-arm64"
+    error_message = "Each class launches its own baked image."
   }
 
   assert {
@@ -131,8 +130,8 @@ run "classes_get_groups_a_runner_and_an_include" {
   }
 
   assert {
-    condition     = strcontains(base64decode(aws_launch_template.gitlab_runner_instance["fleetci-8vcpu-16gb-arm"].user_data), "actions-runner-linux-arm64-2.338.2") && strcontains(base64decode(aws_launch_template.gitlab_runner_instance["fleetci-2vcpu-4gb"].user_data), "actions-runner-linux-x64-2.338.2")
-    error_message = "Each class VM unpacks actions/runner for its architecture."
+    condition     = aws_launch_template.gitlab_runner_instance["fleetci-2vcpu-4gb"].user_data == null && base64decode(aws_launch_template.gitlab_runner_instance["fleetci-8vcpu-16gb-arm"].user_data) == "#!/bin/sh\necho extra\n"
+    error_message = "The image is baked, so a class VM runs no boot script unless user_data names one."
   }
 
   assert {
@@ -187,7 +186,7 @@ run "default_class_must_be_a_class" {
     fleetci = {
       token         = { name = "t", arn = "arn:aws:ssm:us-west-2:111122223333:parameter/t", region = "us-west-2" }
       default_class = "huge"
-      classes       = { "2vcpu-4gb" = { instance_types = ["t3.medium"] } }
+      classes       = { "2vcpu-4gb" = { instance_types = ["t3.medium"], ami_id = "ami-1" } }
     }
   }
 
@@ -201,7 +200,7 @@ run "class_names_are_checked" {
     fleetci = {
       token         = { name = "t", arn = "arn:aws:ssm:us-west-2:111122223333:parameter/t", region = "us-west-2" }
       default_class = "Big_One"
-      classes       = { "Big_One" = { instance_types = ["t3.medium"] } }
+      classes       = { "Big_One" = { instance_types = ["t3.medium"], ami_id = "ami-1" } }
     }
   }
 
@@ -215,7 +214,7 @@ run "a_class_needs_an_instance_type" {
     fleetci = {
       token         = { name = "t", arn = "arn:aws:ssm:us-west-2:111122223333:parameter/t", region = "us-west-2" }
       default_class = "2vcpu-4gb"
-      classes       = { "2vcpu-4gb" = { instance_types = [] } }
+      classes       = { "2vcpu-4gb" = { instance_types = [], ami_id = "ami-1" } }
     }
   }
 

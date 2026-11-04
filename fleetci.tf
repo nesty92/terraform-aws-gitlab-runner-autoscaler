@@ -2,21 +2,13 @@
 # Scaling group beside the pools, keyed fleetci-<class>, and one fleetci
 # [[runners]] entry serves them all. Null leaves everything as it was.
 
-data "aws_ssm_parameter" "fleetci_ubuntu" {
-  for_each = toset(var.fleetci == null ? [] : distinct([
-    for c in values(var.fleetci.classes) : c.architecture if c.ami_id == null
-  ]))
-
-  name = "/aws/service/canonical/ubuntu/server/24.04/stable/current/${each.key}/hvm/ebs-gp3/ami-id"
-}
-
 locals {
   fleetci_classes = var.fleetci == null ? {} : var.fleetci.classes
   fleetci_keys    = [for name in sort(keys(local.fleetci_classes)) : format("fleetci-%s", name)]
 
   fleetci_instances = {
     for name, c in local.fleetci_classes : format("fleetci-%s", name) => {
-      ami_id                      = coalesce(c.ami_id, try(data.aws_ssm_parameter.fleetci_ubuntu[c.architecture].insecure_value, null))
+      ami_id                      = c.ami_id
       additional_tags             = { "fleetci-class" = name }
       collect_autoscaling_metrics = null
       ebs_optimized               = true
@@ -38,13 +30,7 @@ locals {
   }
 
   fleetci_user_data = {
-    for name, c in local.fleetci_classes : format("fleetci-%s", name) => base64encode(
-      c.user_data != null ? c.user_data : templatefile("${path.module}/templates/fleetci_vm_user_data.tftpl", {
-        username       = c.username
-        runner_version = var.fleetci.github_runner_version
-        runner_arch    = c.architecture == "arm64" ? "arm64" : "x64"
-      })
-    )
+    for name, c in local.fleetci_classes : format("fleetci-%s", name) => base64encode(c.user_data) if c.user_data != null
   }
 
   fleetci_subnet_ids = {

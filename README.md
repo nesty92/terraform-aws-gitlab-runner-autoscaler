@@ -87,8 +87,8 @@ fleetci = {
   }
   default_class = "2vcpu-4gb"
   classes = {
-    "2vcpu-4gb"  = { instance_types = ["t3.medium"] }
-    "8vcpu-16gb" = { instance_types = ["c7i.2xlarge", "c6i.2xlarge"], max_instances = 2 }
+    "2vcpu-4gb"  = { instance_types = ["t3.medium"], ami_id = var.fleetci_ami_amd64 }
+    "8vcpu-16gb" = { instance_types = ["c7i.2xlarge", "c6i.2xlarge"], max_instances = 2, ami_id = var.fleetci_ami_amd64 }
   }
   github = {                     # optional
     repos = ["owner/name"]
@@ -122,7 +122,7 @@ runs-on: fleetci-8vcpu-16gb      # or fleetci for the default class
 ```
 
 - **One group per class:** each class gets its own launch template and Auto Scaling group (`gitlab-runner-fleetci-<class>-asg`), on spot, with no instance profile. They are covered by the Manager's IAM policy, like a pool's. VMs boot only when a job needs one; `policy` keeps some warm by time of day, as `runner_autoscaler_policy_amd64` does.
-- **The VM image:** Canonical's Ubuntu 24.04 for the class's architecture unless `ami_id` is set. A boot script installs Docker, libicu and actions/runner, and blocks job containers from reaching instance metadata. A custom `ami_id` needs Docker, an SSH user in the `docker` group (`username`) and EC2 Instance Connect; `user_data` replaces the boot script.
+- **The VM image is baked:** `packer/fleetci.pkr.hcl` builds one Ubuntu 24.04 AMI per architecture with Docker, libicu and actions/runner, and blocks job containers from reaching instance metadata. Nothing is installed at boot, so a VM is ready as soon as Docker answers. Keep `github_runner_version` equal to the image's `runner_version`; otherwise each GitHub job downloads the runner. `user_data` adds a boot script for anything the image lacks.
 - **On the Manager:** the Manager downloads the fleetci release `version`, checks it against the release's `checksums.txt`, and writes `/etc/fleetci/fleetci.toml`. It then appends a `runner-fleetci` entry to `config.toml` that carries `runner_cache`, `job_variables` and `feature_flags` like the other runners. The token is checked first, as a pool's is (`on_invalid_token`). Last it runs `fleetci check`, whose result is in the Manager's cloud-init log. `runner_manager.maximum_concurrent_jobs` is raised by the sum of the classes' `max_instances`.
 - **Changes replace the Manager,** as a pool change does.
 
@@ -218,7 +218,13 @@ packer init .
 packer build -var="vpc_id=vpc-xxxxx" -var="subnet_id=subnet-xxxxx" image.pkr.hcl
 ```
 
-This builds both AMD64 and ARM64 AMIs with Docker pre-installed. Use the AMI IDs from the output in your Terraform configuration:
+This builds both AMD64 and ARM64 AMIs with Docker pre-installed. fleetci's classes take their own image, built the same way:
+
+```bash
+packer build -var="vpc_id=vpc-xxxxx" -var="subnet_id=subnet-xxxxx" fleetci.pkr.hcl
+```
+
+Use the AMI IDs from the output in your Terraform configuration:
 
 ```hcl
 runner_instance_amd64 = {

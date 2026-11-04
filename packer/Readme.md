@@ -46,6 +46,21 @@ The build creates two AMIs:
 
 AMI IDs are displayed in the build output. Save these for your Terraform configuration.
 
+## fleetci Class Images
+
+`fleetci.pkr.hcl` builds the images for `fleetci.classes[*].ami_id`: Ubuntu 24.04 (Canonical's) with Docker, libicu and actions/runner unpacked in `/home/ubuntu/actions-runner-<runner_version>`, for amd64 and arm64. `fleetci-vm.sh` does the provisioning, and also keeps job containers away from instance metadata.
+
+```bash
+packer build \
+  -var="vpc_id=vpc-xxxxx" \
+  -var="subnet_id=subnet-xxxxx" \
+  -var="region=us-west-2" \
+  -var="runner_version=2.338.2" \
+  fleetci.pkr.hcl
+```
+
+It creates `fleetci-{timestamp}-ubuntu-24.04-amd64` and `fleetci-{timestamp}-ubuntu-24.04-arm64`. Every class of an architecture can share its image. Keep the module's `fleetci.github_runner_version` equal to `runner_version`; otherwise each GitHub job downloads the runner.
+
 ## Important Notes
 
 - **Architecture Alignment**: Provide an AMI for each architecture in your Terraform `architectures` variable. If using both `amd64` and `arm64`, you need both AMI IDs.

@@ -852,9 +852,10 @@ variable "fleetci" {
       architecture = amd64 (default) or arm64.
       instance_types = The types the group may launch; more than one makes it a mixed instances policy.
       max_instances = The most VMs at once (default 4); a ceiling, nothing runs until a job needs it.
-      ami_id = The image; default Canonical's Ubuntu 24.04 for the architecture. It needs Docker and the
-        connector's user in the docker group; the default boot script installs them.
-      user_data = Replaces the default boot script (Docker, libicu and actions/runner on Ubuntu).
+      ami_id = The class's image, built with packer/fleetci.pkr.hcl (Ubuntu 24.04 with Docker and actions/runner),
+        one per architecture. Its own build needs Docker, the connector's user in the docker group, EC2 Instance
+        Connect and, for GitHub jobs, libicu and actions/runner in ~/actions-runner-<github_runner_version>.
+      user_data = Run on each VM's boot, for what the image lacks; none by default.
       username = The SSH user fleetci logs in as (default ubuntu).
       volume_size = Root volume GiB (default 30).
       acquire_timeout = How long a job waits for a VM (default 10m).
@@ -864,7 +865,8 @@ variable "fleetci" {
     docker = [runners.docker] options for fleetci's runner; default image ubuntu:24.04.
     github = GitHub Actions jobs on the same classes: repos as owner/name, and the SSM parameter holding a
       fine-grained token with Actions: Read and Administration: Read and write on them.
-    github_runner_version = actions/runner release unpacked on every class VM.
+    github_runner_version = actions/runner release GitHub jobs run: the one packer/fleetci.pkr.hcl unpacked
+      (its runner_version), else it is downloaded for each job.
 
     concurrent (runner_manager.maximum_concurrent_jobs) is raised by the sum of the classes' max_instances.
   EOT
@@ -883,7 +885,7 @@ variable "fleetci" {
       architecture             = optional(string, "amd64")
       instance_types           = list(string)
       max_instances            = optional(number, 4)
-      ami_id                   = optional(string)
+      ami_id                   = string
       user_data                = optional(string)
       username                 = optional(string, "ubuntu")
       volume_size              = optional(number, 30)

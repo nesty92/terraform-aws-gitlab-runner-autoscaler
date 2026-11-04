@@ -81,11 +81,12 @@ run "classes_get_groups_a_runner_and_an_include" {
           ami_id         = "ami-fleetci-amd64"
         }
         "8vcpu-16gb-arm" = {
-          architecture   = "arm64"
-          instance_types = ["c7g.2xlarge", "c6g.2xlarge"]
-          max_instances  = 2
-          ami_id         = "ami-fleetci-arm64"
-          user_data      = "#!/bin/sh\necho extra\n"
+          architecture         = "arm64"
+          instance_types       = ["c7g.2xlarge", "c6g.2xlarge"]
+          max_instances        = 2
+          ami_id               = "ami-fleetci-arm64"
+          private_address_only = false
+          user_data            = "#!/bin/sh\necho extra\n"
           policy = [{
             periods    = ["* 8-18 * * mon-fri"]
             timezone   = "Europe/Warsaw"
@@ -166,6 +167,11 @@ run "classes_get_groups_a_runner_and_an_include" {
       "fleetci check",
     ] : strcontains(aws_instance.runner_manager.user_data, s)])
     error_message = "The Manager installs fleetci, writes fleetci.toml and its runner, and runs fleetci check."
+  }
+
+  assert {
+    condition     = one(aws_launch_template.gitlab_runner_instance["fleetci-8vcpu-16gb-arm"].network_interfaces).associate_public_ip_address == "true" && one(aws_launch_template.gitlab_runner_instance["fleetci-2vcpu-4gb"].network_interfaces).associate_public_ip_address == "false"
+    error_message = "private_address_only = false gives a class's VMs a public address; the default keeps them private."
   }
 
   assert {

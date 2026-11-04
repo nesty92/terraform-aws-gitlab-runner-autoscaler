@@ -850,7 +850,9 @@ variable "fleetci" {
     default_class = The class a job gets when it names none.
     classes = One Auto Scaling group each (gitlab-runner-fleetci-<class>-asg), on spot, in private subnets:
       architecture = amd64 (default) or arm64.
-      instance_types = The types the group may launch; more than one makes it a mixed instances policy.
+      instance_types = The types the group may launch; more than one makes it a mixed instances policy. Prefer
+        non-burstable types (c7a, c7i, m7i, m7g): a T type (t3, t3a, t4g) bills surplus CPU credits for
+        a CPU-bound job, and in standard mode starts with no credits, throttled to its baseline.
       max_instances = The most VMs at once (default 4); a ceiling, nothing runs until a job needs it.
       ami_id = The class's image, built with packer/fleetci.pkr.hcl (Ubuntu 24.04 with Docker and actions/runner),
         one per architecture. Its own build needs Docker, the connector's user in the docker group, EC2 Instance
@@ -861,6 +863,8 @@ variable "fleetci" {
       acquire_timeout = How long a job waits for a VM (default 10m).
       policy = Warm VMs by time of day, as runner_autoscaler_policy_amd64. Empty (default): every VM boots for its job.
       subnet_ids = Defaults to aws_subnet_ids.
+      private_address_only = false gives each VM a public IPv4 ($0.005/h), for public subnets without a NAT
+        gateway, whose data charge every image pull of a fresh VM pays. The Manager still connects privately.
       spot_allocation_strategy = As runner_instance_amd64's.
     docker = [runners.docker] options for fleetci's runner; default image ubuntu:24.04.
     github = GitHub Actions jobs on the same classes: repos as owner/name, and the SSM parameter holding a
@@ -891,6 +895,7 @@ variable "fleetci" {
       volume_size              = optional(number, 30)
       acquire_timeout          = optional(string)
       subnet_ids               = optional(list(string))
+      private_address_only     = optional(bool, true)
       spot_allocation_strategy = optional(string, "price-capacity-optimized")
       policy = optional(list(object({
         periods            = optional(list(string))

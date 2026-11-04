@@ -15,7 +15,7 @@ locals {
       max_lifetime_seconds        = null
       monitoring                  = false
       name_prefix                 = format("gitlab-runner-fleetci-%s", name)
-      private_address_only        = true
+      private_address_only        = c.private_address_only
       block_device_mappings       = { device_name = "/dev/sda1", volume_size = tostring(c.volume_size) }
       spot_price                  = null
       spot_allocation_strategy    = c.spot_allocation_strategy

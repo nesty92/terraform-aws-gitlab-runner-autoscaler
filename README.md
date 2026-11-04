@@ -18,6 +18,23 @@ The Runner Manager is deployed as an EC2 instance and the Runner instances are d
 [![Architecture Diagram](https://raw.githubusercontent.com/nesty92/terraform-aws-gitlab-runner-autoscaler/main/docs/architecture.png)](https://raw.githubusercontent.com/nesty92/terraform-aws-gitlab-runner-autoscaler/main/docs/architecture.png)
 *Architecture Diagram - See: [GitLab Runner Autoscaler documentation](https://docs.gitlab.com/runner/runner_autoscale/#gitlab-runner-autoscaler) for more details*
 
+With `fleetci` set, the same Manager also runs fleetci's runner, which gives each job a fresh VM from the class it names:
+
+```mermaid
+flowchart LR
+  gl[GitLab] -- "job with FLEETCI_CLASS" --> gr
+  gh[GitHub Actions] -- "queued job, runs-on: fleetci-&lt;class&gt;" --> fc
+  subgraph manager [Runner Manager]
+    gr[gitlab-runner<br>docker-autoscaler] -- "vm_isolation: class-&lt;class&gt;" --> fc[fleeting-plugin-fleetci]
+  end
+  fc -- "one fleeting-plugin-aws per class" --> a1[ASG fleetci-1vcpu-2gb]
+  fc --> a2[ASG fleetci-2vcpu-4gb]
+  fc --> a3[ASG fleetci-8vcpu-16gb]
+  a2 -. "one VM per job, removed after" .-> vm[(VM: Docker,<br>actions/runner)]
+```
+
+GitLab jobs run in a container on their VM. GitHub jobs run on the VM itself through a just-in-time runner that fleetci registers and starts over SSH. See [Per-Job VM Classes](#per-job-vm-classes-fleetci).
+
 ## Multiple Instance Types
 
 By default each Auto Scaling Group launches spot on the single `type` of its `runner_instance_*` input. A spot shortage in that one type and zone then means the group cannot start a Runner instance. Listing `instance_type_overrides` gives the group a mixed instances policy instead, so it can launch spot on whichever listed type has capacity at the best price:
@@ -87,9 +104,8 @@ fleetci = {
   }
   default_class = "2vcpu-4gb"
   classes = {
-    "1vcpu-2gb"  = { instance_types = ["c7a.medium"], max_instances = 6, ami_id = var.fleetci_ami_amd64 }              # linters, PR title checks
-    "2vcpu-2gb"  = { instance_types = ["t3.small", "t3a.small"], max_instances = 6, ami_id = var.fleetci_ami_amd64 } # small checks
-    "2vcpu-4gb"  = { instance_types = ["t3.medium"], ami_id = var.fleetci_ami_amd64 }
+    "1vcpu-2gb"  = { instance_types = ["c7a.medium"], max_instances = 6, ami_id = var.fleetci_ami_amd64 } # linters, PR title checks
+    "2vcpu-4gb"  = { instance_types = ["c7a.large", "c7i.large", "c6i.large"], ami_id = var.fleetci_ami_amd64 }
     "8vcpu-16gb" = { instance_types = ["c7i.2xlarge", "c6i.2xlarge"], max_instances = 2, ami_id = var.fleetci_ami_amd64 }
   }
   github = {                     # optional
@@ -131,7 +147,12 @@ runs-on: fleetci-8vcpu-16gb      # or fleetci for the default class
 - **One group per class:** each class gets its own launch template and Auto Scaling group (`gitlab-runner-fleetci-<class>-asg`), on spot, with no instance profile. They are covered by the Manager's IAM policy, like a pool's. VMs boot only when a job needs one; `policy` keeps some warm by time of day, as `runner_autoscaler_policy_amd64` does.
 - **The VM image is baked:** `packer/fleetci.pkr.hcl` builds one Ubuntu 24.04 AMI per architecture with Docker, libicu and actions/runner, and blocks job containers from reaching instance metadata. Nothing is installed at boot, so a VM is ready as soon as Docker answers. Keep `github_runner_version` equal to the image's `runner_version`; otherwise each GitHub job downloads the runner. `user_data` adds a boot script for anything the image lacks.
 - **On the Manager:** the Manager downloads the fleetci release `version`, checks it against the release's `checksums.txt`, and writes `/etc/fleetci/fleetci.toml`. It then appends a `runner-fleetci` entry to `config.toml` that carries `runner_cache`, `job_variables` and `feature_flags` like the other runners. The token is checked first, as a pool's is (`on_invalid_token`). Last it runs `fleetci check`, whose result is in the Manager's cloud-init log. `runner_manager.maximum_concurrent_jobs` is raised by the sum of the classes' `max_instances`.
+- **Non-burstable types:** T types (t3, t3a, t4g) launch in unlimited mode with no launch credits, so a CPU-bound job spends surplus credits, billed when the VM is terminated at $0.05 per vCPU-hour. On a t3.medium at full CPU that is about four times its spot price. Standard mode avoids the charge but starts a fresh VM with no credits, throttled to its baseline (20% of each vCPU on a t3.medium). The classes above use c7a, c7i and c6i; a T type suits only jobs that mostly wait.
+- **Network:** every VM is new, so each job pulls its images and dependencies again. Through a NAT gateway that costs $0.046/GB processed (Stockholm) on top of the gateway's $0.046/hour, and a 1 GB pull then costs as much as the VM. `private_address_only = false` on a class in public subnets (see [Runner Subnets](#runner-subnets)) trades it for a public IPv4 at $0.005/hour per VM. Data leaving AWS costs $0.09/GB after the first 100 GB a month: artifacts, GitHub's `actions/cache` uploads, and registry pushes. Downloads into AWS are free.
+- **Caches:** GitLab jobs use `runner_cache` like the other runners. An S3 gateway endpoint in the VPC keeps that traffic off the NAT and free; S3 storage is $0.023/GB-month. GitHub jobs keep `actions/cache` on GitHub, so restores are free downloads and saves are egress. Images used by every job can be pre-pulled into the class image in `packer/fleetci-vm.sh`, so no job downloads them.
 - **Changes replace the Manager,** as a pool change does.
+
+How this compares with GitHub-hosted runners on 104M real jobs, network included: [fleetci cost comparison](https://github.com/nesty92/fleetci/blob/main/docs/cost.md).
 
 ## Runner Subnets
 

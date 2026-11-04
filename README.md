@@ -87,6 +87,7 @@ fleetci = {
   }
   default_class = "2vcpu-4gb"
   classes = {
+    "2vcpu-2gb"  = { instance_types = ["t3.small", "t3a.small"], max_instances = 6, ami_id = var.fleetci_ami_amd64 } # linters, small checks
     "2vcpu-4gb"  = { instance_types = ["t3.medium"], ami_id = var.fleetci_ami_amd64 }
     "8vcpu-16gb" = { instance_types = ["c7i.2xlarge", "c6i.2xlarge"], max_instances = 2, ami_id = var.fleetci_ami_amd64 }
   }
@@ -110,6 +111,10 @@ tofu output -json fleetci | jq -r .ci_include > .gitlab/fleetci.yml
 ```yaml
 include:
   - local: .gitlab/fleetci.yml
+
+lint:
+  extends: .fleetci-2vcpu-2gb
+  script: make lint
 
 build:
   extends: .fleetci-8vcpu-16gb   # or .fleetci for the default class

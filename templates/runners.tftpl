@@ -13,6 +13,9 @@
     %{~ if try(config.builds_dir, null) != null ~}
     builds_dir = ${jsonencode(config.builds_dir)}
     %{~ endif ~}
+    %{~ if try(config.cache_dir, null) != null ~}
+    cache_dir = ${jsonencode(config.cache_dir)}
+    %{~ endif ~}
     %{~ if length(config.environment) > 0 ~}
     environment = ${jsonencode(config.environment)}
     %{~ endif ~}

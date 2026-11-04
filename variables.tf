@@ -686,6 +686,9 @@ variable "runner_pools" {
     builds_dir = An absolute [[runners]] builds_dir. Unset, the runner's own default applies. The instance executor's default is
       relative, and a relative builds directory breaks the runner's cache upload, which resolves its temporary files
       against the project directory; give an instance pool that uses runner_cache an absolute one.
+    cache_dir = An absolute [[runners]] cache_dir, where the runner keeps a job's cache archive on the instance. The runner
+      refuses to use the cache when one of builds_dir and cache_dir is absolute and the other relative, as the instance
+      executor's default cache_dir is; set both, or neither.
     privileged = With docker-autoscaler, sets [runners.docker] privileged = true; with instance, connects as root unless
       connector.username says otherwise.
     instance = Launch settings, as runner_instance_amd64 without ami_id, plus user_data (plain text, put on the pool's
@@ -712,6 +715,7 @@ variable "runner_pools" {
     })
     on_invalid_token = optional(string, "skip")
     builds_dir       = optional(string)
+    cache_dir        = optional(string)
     privileged       = optional(bool, false)
 
     instance = optional(object({
@@ -828,5 +832,15 @@ variable "runner_pools" {
   validation {
     condition     = alltrue([for pool in values(var.runner_pools) : pool.builds_dir == null ? true : startswith(pool.builds_dir, "/")])
     error_message = "builds_dir must be an absolute path."
+  }
+
+  validation {
+    condition     = alltrue([for pool in values(var.runner_pools) : pool.cache_dir == null ? true : startswith(pool.cache_dir, "/")])
+    error_message = "cache_dir must be an absolute path."
+  }
+
+  validation {
+    condition     = alltrue([for pool in values(var.runner_pools) : (pool.builds_dir == null) == (pool.cache_dir == null)])
+    error_message = "Set builds_dir and cache_dir together: the runner skips the cache when one is absolute and the other relative."
   }
 }

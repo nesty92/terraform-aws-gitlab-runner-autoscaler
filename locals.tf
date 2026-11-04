@@ -193,6 +193,7 @@ locals {
       plugin     = "fleeting-plugin-aws"
       executor   = pool.executor
       builds_dir = pool.builds_dir
+      cache_dir  = pool.cache_dir
 
       environment = pool.executor == "docker-autoscaler" ? local.docker_runner_environment : local.runner_environment
 

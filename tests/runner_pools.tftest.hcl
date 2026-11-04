@@ -372,6 +372,7 @@ run "an_instance_pool_can_name_an_absolute_builds_dir" {
         executor     = "instance"
         ami_id       = "ami-machine"
         builds_dir   = "/root/builds"
+        cache_dir    = "/root/cache"
         token = {
           name   = "gitlab-runner-e2e-token"
           arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-e2e-token"
@@ -384,6 +385,11 @@ run "an_instance_pool_can_name_an_absolute_builds_dir" {
   assert {
     condition     = length(regexall("builds_dir = \"/root/builds\"", aws_instance.runner_manager.user_data)) == 1
     error_message = "The pool's [[runners]] entry carries its builds_dir, and no other entry does."
+  }
+
+  assert {
+    condition     = length(regexall("cache_dir = \"/root/cache\"", aws_instance.runner_manager.user_data)) == 1
+    error_message = "The pool's [[runners]] entry carries its cache_dir beside its builds_dir."
   }
 }
 
@@ -406,8 +412,8 @@ run "no_builds_dir_by_default" {
   }
 
   assert {
-    condition     = !strcontains(aws_instance.runner_manager.user_data, "builds_dir")
-    error_message = "Without builds_dir the runner's own default stays."
+    condition     = !strcontains(aws_instance.runner_manager.user_data, "builds_dir") && !strcontains(aws_instance.runner_manager.user_data, "\n    cache_dir")
+    error_message = "Without builds_dir and cache_dir the runner's own defaults stay."
   }
 }
 
@@ -421,6 +427,29 @@ run "builds_dir_is_absolute" {
         executor     = "instance"
         ami_id       = "ami-machine"
         builds_dir   = "builds"
+        cache_dir    = "/root/cache"
+        token = {
+          name   = "gitlab-runner-e2e-token"
+          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-e2e-token"
+          region = "us-west-2"
+        }
+      }
+    }
+  }
+
+  expect_failures = [var.runner_pools]
+}
+
+run "builds_dir_needs_a_cache_dir" {
+  command = plan
+
+  variables {
+    runner_pools = {
+      e2e = {
+        architecture = "amd64"
+        executor     = "instance"
+        ami_id       = "ami-machine"
+        builds_dir   = "/root/builds"
         token = {
           name   = "gitlab-runner-e2e-token"
           arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-e2e-token"

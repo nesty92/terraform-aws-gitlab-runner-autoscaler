@@ -87,7 +87,7 @@ fleetci = {
   }
   default_class = "2vcpu-4gb"
   classes = {
-    "1vcpu-2gb"  = { instance_types = ["c7a.medium"], max_instances = 6, ami_id = var.fleetci_ami_amd64 }              # linters
+    "1vcpu-2gb"  = { instance_types = ["c7a.medium"], max_instances = 6, ami_id = var.fleetci_ami_amd64 }              # linters, PR title checks
     "2vcpu-2gb"  = { instance_types = ["t3.small", "t3a.small"], max_instances = 6, ami_id = var.fleetci_ami_amd64 } # small checks
     "2vcpu-4gb"  = { instance_types = ["t3.medium"], ami_id = var.fleetci_ami_amd64 }
     "8vcpu-16gb" = { instance_types = ["c7i.2xlarge", "c6i.2xlarge"], max_instances = 2, ami_id = var.fleetci_ami_amd64 }
@@ -125,6 +125,7 @@ build:
 ```yaml
 # GitHub Actions
 runs-on: fleetci-8vcpu-16gb      # or fleetci for the default class
+# a PR title and description check: runs-on: fleetci-1vcpu-2gb
 ```
 
 - **One group per class:** each class gets its own launch template and Auto Scaling group (`gitlab-runner-fleetci-<class>-asg`), on spot, with no instance profile. They are covered by the Manager's IAM policy, like a pool's. VMs boot only when a job needs one; `policy` keeps some warm by time of day, as `runner_autoscaler_policy_amd64` does.

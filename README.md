@@ -74,6 +74,58 @@ runner_pools = {
 - **Changes replace the Manager:** adding, changing or removing a pool changes the Manager's user data, which replaces it once; jobs running on it at that moment are cut off. `runner_manager.maximum_concurrent_jobs` is global and shared by every runner, so raise it when adding pools.
 - **No state moves:** the per-architecture resources keep their keys. With `runner_pools = {}` (the default) a plan shows no changes.
 
+## Per-Job VM Classes (fleetci)
+
+`fleetci` lets a job name the machine size it needs and get a fresh VM of that size, used once, through [fleetci](https://github.com/nesty92/fleetci). GitLab jobs pick a class with `extends:`, and GitHub Actions jobs with `runs-on:`. Both share the same groups. It is opt-in: with `fleetci = null` (the default) nothing changes.
+
+```hcl
+fleetci = {
+  token = {                      # a runner registered with the tag fleetci, "Run untagged jobs" off
+    name   = aws_ssm_parameter.fleetci_token.name
+    arn    = aws_ssm_parameter.fleetci_token.arn
+    region = "eu-north-1"
+  }
+  default_class = "2vcpu-4gb"
+  classes = {
+    "2vcpu-4gb"  = { instance_types = ["t3.medium"] }
+    "8vcpu-16gb" = { instance_types = ["c7i.2xlarge", "c6i.2xlarge"], max_instances = 2 }
+  }
+  github = {                     # optional
+    repos = ["owner/name"]
+    token = {                    # fine-grained: Actions read, Administration read and write
+      name   = aws_ssm_parameter.fleetci_github_token.name
+      arn    = aws_ssm_parameter.fleetci_github_token.arn
+      region = "eu-north-1"
+    }
+  }
+}
+```
+
+Commit the `ci_include` from the `fleetci` output as `.gitlab/fleetci.yml`:
+
+```sh
+tofu output -json fleetci | jq -r .ci_include > .gitlab/fleetci.yml
+```
+
+```yaml
+include:
+  - local: .gitlab/fleetci.yml
+
+build:
+  extends: .fleetci-8vcpu-16gb   # or .fleetci for the default class
+  script: make
+```
+
+```yaml
+# GitHub Actions
+runs-on: fleetci-8vcpu-16gb      # or fleetci for the default class
+```
+
+- **One group per class:** each class gets its own launch template and Auto Scaling group (`gitlab-runner-fleetci-<class>-asg`), on spot, with no instance profile. They are covered by the Manager's IAM policy, like a pool's. VMs boot only when a job needs one; `policy` keeps some warm by time of day, as `runner_autoscaler_policy_amd64` does.
+- **The VM image:** Canonical's Ubuntu 24.04 for the class's architecture unless `ami_id` is set. A boot script installs Docker, libicu and actions/runner, and blocks job containers from reaching instance metadata. A custom `ami_id` needs Docker, an SSH user in the `docker` group (`username`) and EC2 Instance Connect; `user_data` replaces the boot script.
+- **On the Manager:** the Manager downloads the fleetci release `version`, checks it against the release's `checksums.txt`, and writes `/etc/fleetci/fleetci.toml`. It then appends a `runner-fleetci` entry to `config.toml` that carries `runner_cache`, `job_variables` and `feature_flags` like the other runners. The token is checked first, as a pool's is (`on_invalid_token`). Last it runs `fleetci check`, whose result is in the Manager's cloud-init log. `runner_manager.maximum_concurrent_jobs` is raised by the sum of the classes' `max_instances`.
+- **Changes replace the Manager,** as a pool change does.
+
 ## Runner Subnets
 
 The Manager and the runners launch into `aws_subnet_ids` unless told otherwise. `runner_instance_amd64` and `runner_instance_arm64` take an optional `subnet_ids` that moves that architecture's Auto Scaling group to other subnets, as a runner pool's `instance.subnet_ids` does; left unset, nothing changes. The Manager always stays in the first of `aws_subnet_ids`.

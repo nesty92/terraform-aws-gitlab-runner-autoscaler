@@ -1,0 +1,30 @@
+#!/bin/bash
+# A fleetci class VM: Ubuntu with Docker, like GitHub's ubuntu-latest. The
+# ${username} user is reached through EC2 Instance Connect with a key that
+# works for 60 seconds. actions/runner is unpacked here, so GitHub jobs don't
+# download it.
+#
+# The VM has no instance profile, so its metadata holds no credentials; the
+# DOCKER-USER rule still keeps job containers from reading it.
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+for i in 1 2 3 4 5; do
+  apt-get update -q && apt-get install -y -q --no-install-recommends docker.io docker-buildx iptables libicu74 git curl ca-certificates && break
+  sleep 15
+done
+usermod -aG docker ${username}
+
+mkdir -p /etc/systemd/system/docker.service.d
+cat > /etc/systemd/system/docker.service.d/no-imds.conf <<'UNIT'
+[Service]
+ExecStartPost=/usr/sbin/iptables -I DOCKER-USER -d 169.254.169.254 -j DROP
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now docker
+
+runner_dir=/home/${username}/actions-runner-${runner_version}
+install -d -o ${username} -g ${username} "$runner_dir"
+curl -fsSL --retry 5 "https://github.com/actions/runner/releases/download/v${runner_version}/actions-runner-linux-${runner_arch}-${runner_version}.tar.gz" |
+  sudo -u ${username} tar -xz -C "$runner_dir"

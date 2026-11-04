@@ -1,0 +1,27 @@
+# Written by terraform-aws-gitlab-runner-autoscaler from its fleetci input.
+default_class = ${jsonencode(default_class)}
+%{~ for name, class in classes }
+
+[classes.${name}]
+plugin = "/usr/bin/fleeting-plugin-aws"
+max_instances = ${class.max_instances}
+%{~ if class.acquire_timeout != null }
+acquire_timeout = ${jsonencode(class.acquire_timeout)}
+%{~ endif }
+plugin_config = { name = ${jsonencode(class.asg_name)}, region = ${jsonencode(region)} }
+connector_config = { username = ${jsonencode(class.username)}, timeout = "5m" }
+%{~ for policy in class.policy }
+
+[[classes.${name}.policy]]
+%{~ for key, value in policy }
+${key} = ${jsonencode(value)}
+%{~ endfor }
+%{~ endfor }
+%{~ endfor }
+%{~ if github != null }
+
+[github]
+repos = ${jsonencode(github.repos)}
+token_file = "/etc/fleetci/github.token"
+runner_version = ${jsonencode(github_runner_version)}
+%{~ endif }

@@ -120,7 +120,7 @@ locals {
   # per-architecture runners keep their own keys (amd64, arm64), so adding a
   # pool moves nothing in state.
   pool_keys  = sort(keys(var.runner_pools))
-  pool_order = concat(var.architectures, local.pool_keys)
+  pool_order = concat(var.architectures, local.pool_keys, local.fleetci_keys)
 
   pool_executor_defaults = {
     "docker-autoscaler" = { capacity_per_instance = 1, max_use_count = 10, max_instances = 2 }
@@ -152,11 +152,12 @@ locals {
     }
   }
 
-  pool_instances = merge(local.runner_instances, local.custom_pool_instances)
+  pool_instances = merge(local.runner_instances, local.custom_pool_instances, local.fleetci_instances)
 
-  pool_user_data = {
-    for key, pool in var.runner_pools : key => base64encode(pool.instance.user_data) if pool.instance.user_data != null
-  }
+  pool_user_data = merge(
+    { for key, pool in var.runner_pools : key => base64encode(pool.instance.user_data) if pool.instance.user_data != null },
+    local.fleetci_user_data,
+  )
 
   pool_subnet_ids = merge(
     {
@@ -166,6 +167,7 @@ locals {
     {
       for key, pool in var.runner_pools : key => pool.instance.subnet_ids if pool.instance.subnet_ids != null
     },
+    local.fleetci_subnet_ids,
   )
 
   custom_pool_autoscaler_options = {
@@ -175,7 +177,7 @@ locals {
     )
   }
 
-  pool_autoscaler_options = merge(local.runner_autoscaler_options, local.custom_pool_autoscaler_options)
+  pool_autoscaler_options = merge(local.runner_autoscaler_options, local.custom_pool_autoscaler_options, local.fleetci_autoscaler_options)
 
   pool_tokens = merge(local.runner_tokens, { for key, pool in var.runner_pools : key => pool.token })
 
@@ -283,7 +285,7 @@ locals {
 
   template_runner_config = templatefile("${path.module}/templates/runner_manager.tftpl", {
     gitlab_check_interval     = var.runner_manager.gitlab_check_interval
-    maximum_concurrent_jobs   = var.runner_manager.maximum_concurrent_jobs
+    maximum_concurrent_jobs   = var.runner_manager.maximum_concurrent_jobs + local.fleetci_max_instances
     prometheus_listen_address = var.runner_manager.prometheus_listen_address
     sentry_dsn                = var.runner_manager.sentry_dsn
 

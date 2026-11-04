@@ -830,3 +830,120 @@ variable "runner_pools" {
     error_message = "builds_dir must be an absolute path."
   }
 }
+
+variable "fleetci" {
+  description = <<-EOT
+    Opt-in per-job VM classes with fleetci (https://github.com/nesty92/fleetci). A job names the size it needs and
+    gets a fresh VM of that size, used once: on GitLab with `extends: .fleetci-<class>` (see the fleetci output's
+    ci_include), on GitHub Actions with `runs-on: fleetci-<class>`. Left null (the default), nothing changes.
+
+    The Manager installs fleetci at boot, writes /etc/fleetci/fleetci.toml from classes, adds a runner-fleetci
+    [[runners]] entry (with runner_cache, job_variables and feature_flags, like the other runners) and logs
+    `fleetci check`. Changing anything here replaces the Manager, as a runner pool change does.
+
+    version = fleetci release to install.
+    token = The SSM parameter holding the runner authentication token of a runner registered with the tag `tag`
+      (and "Run untagged jobs" off).
+    tag = That runner's tag, which the fleetci output's ci_include sets (default fleetci).
+    on_invalid_token = skip (default): a missing or invalid token leaves fleetci out of config.toml; fail: the
+      Manager's boot exits.
+    default_class = The class a job gets when it names none.
+    classes = One Auto Scaling group each (gitlab-runner-fleetci-<class>-asg), on spot, in private subnets:
+      architecture = amd64 (default) or arm64.
+      instance_types = The types the group may launch; more than one makes it a mixed instances policy.
+      max_instances = The most VMs at once (default 4); a ceiling, nothing runs until a job needs it.
+      ami_id = The image; default Canonical's Ubuntu 24.04 for the architecture. It needs Docker and the
+        connector's user in the docker group; the default boot script installs them.
+      user_data = Replaces the default boot script (Docker, libicu and actions/runner on Ubuntu).
+      username = The SSH user fleetci logs in as (default ubuntu).
+      volume_size = Root volume GiB (default 30).
+      acquire_timeout = How long a job waits for a VM (default 10m).
+      policy = Warm VMs by time of day, as runner_autoscaler_policy_amd64. Empty (default): every VM boots for its job.
+      subnet_ids = Defaults to aws_subnet_ids.
+      spot_allocation_strategy = As runner_instance_amd64's.
+    docker = [runners.docker] options for fleetci's runner; default image ubuntu:24.04.
+    github = GitHub Actions jobs on the same classes: repos as owner/name, and the SSM parameter holding a
+      fine-grained token with Actions: Read and Administration: Read and write on them.
+    github_runner_version = actions/runner release unpacked on every class VM.
+
+    concurrent (runner_manager.maximum_concurrent_jobs) is raised by the sum of the classes' max_instances.
+  EOT
+
+  type = object({
+    version = optional(string, "0.2.0")
+    token = object({
+      name   = string
+      arn    = string
+      region = string
+    })
+    on_invalid_token = optional(string, "skip")
+    tag              = optional(string, "fleetci")
+    default_class    = string
+    classes = map(object({
+      architecture             = optional(string, "amd64")
+      instance_types           = list(string)
+      max_instances            = optional(number, 4)
+      ami_id                   = optional(string)
+      user_data                = optional(string)
+      username                 = optional(string, "ubuntu")
+      volume_size              = optional(number, 30)
+      acquire_timeout          = optional(string)
+      subnet_ids               = optional(list(string))
+      spot_allocation_strategy = optional(string, "price-capacity-optimized")
+      policy = optional(list(object({
+        periods            = optional(list(string))
+        timezone           = optional(string)
+        idle_count         = optional(number)
+        idle_time          = optional(string)
+        scale_factor       = optional(number)
+        scale_factor_limit = optional(number)
+      })), [])
+    }))
+    docker = optional(any, { image = "ubuntu:24.04" })
+    github = optional(object({
+      repos = list(string)
+      token = object({
+        name   = string
+        arn    = string
+        region = string
+      })
+    }))
+    github_runner_version = optional(string, "2.338.2")
+  })
+  default = null
+
+  validation {
+    condition     = var.fleetci == null ? true : length(var.fleetci.classes) > 0 && contains(keys(var.fleetci.classes), var.fleetci.default_class)
+    error_message = "fleetci needs at least one class, and default_class must be one of them."
+  }
+
+  validation {
+    condition     = var.fleetci == null ? true : alltrue([for k in keys(var.fleetci.classes) : can(regex("^[a-z0-9][a-z0-9-]{0,29}$", k))])
+    error_message = "fleetci class names must match ^[a-z0-9][a-z0-9-]{0,29}$, such as 2vcpu-4gb."
+  }
+
+  validation {
+    condition     = var.fleetci == null ? true : alltrue([for c in values(var.fleetci.classes) : contains(["amd64", "arm64"], c.architecture) && length(c.instance_types) > 0 && c.max_instances >= 1])
+    error_message = "Each fleetci class needs architecture amd64 or arm64, at least one instance type and max_instances of at least 1."
+  }
+
+  validation {
+    condition     = var.fleetci == null ? true : alltrue([for c in values(var.fleetci.classes) : contains(["price-capacity-optimized", "capacity-optimized", "capacity-optimized-prioritized", "lowest-price"], c.spot_allocation_strategy)])
+    error_message = "spot_allocation_strategy must be price-capacity-optimized, capacity-optimized, capacity-optimized-prioritized or lowest-price."
+  }
+
+  validation {
+    condition     = var.fleetci == null ? true : contains(["skip", "fail"], var.fleetci.on_invalid_token)
+    error_message = "fleetci.on_invalid_token must be skip or fail."
+  }
+
+  validation {
+    condition     = var.fleetci == null ? true : alltrue([for k in keys(var.fleetci.classes) : !contains(keys(var.runner_pools), "fleetci-${k}")])
+    error_message = "A runner_pools key equals fleetci-<class> for a fleetci class; both would name the same Auto Scaling group."
+  }
+
+  validation {
+    condition     = var.fleetci == null ? true : (var.fleetci.github == null ? true : alltrue([for r in var.fleetci.github.repos : can(regex("^[^/]+/[^/]+$", r))]))
+    error_message = "fleetci.github.repos must be owner/name."
+  }
+}

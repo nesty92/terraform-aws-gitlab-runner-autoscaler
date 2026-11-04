@@ -92,6 +92,67 @@ else
 fi
 %{ endfor ~}
 
+%{ if fleetci != null ~}
+
+# fleetci: per-job VM classes (https://github.com/nesty92/fleetci)
+fleetci_tmp=$(mktemp -d)
+fleetci_base="https://github.com/nesty92/fleetci/releases/download/v${fleetci.version}"
+for f in fleetci-linux-amd64 fleeting-plugin-fleetci-linux-amd64 checksums.txt
+do
+    curl --fail --retry 6 -sSL "$fleetci_base/$f" -o "$fleetci_tmp/$f"
+done
+(cd "$fleetci_tmp" && grep -E ' (fleetci|fleeting-plugin-fleetci)-linux-amd64$' checksums.txt | sha256sum -c -)
+install -m 755 "$fleetci_tmp/fleetci-linux-amd64" /usr/bin/fleetci
+install -m 755 "$fleetci_tmp/fleeting-plugin-fleetci-linux-amd64" /usr/bin/fleeting-plugin-fleetci
+rm -rf "$fleetci_tmp"
+
+install -d -m 700 /etc/fleetci
+cat > /etc/fleetci/fleetci.toml <<- 'EOF'
+${fleetci.toml}
+EOF
+chmod 600 /etc/fleetci/fleetci.toml
+%{ if fleetci.github_token != null ~}
+
+# The GitHub token fleetci registers just-in-time runners with
+token=$(aws ssm get-parameters --names "${fleetci.github_token.name}" --with-decryption --region "${fleetci.github_token.region}" | jq -r ".Parameters | .[0] | .Value")
+if [[ "$token" == "null" ]]
+then
+    echo "fleetci: no GitHub token in ${fleetci.github_token.name}; GitHub jobs will not run"
+else
+    (umask 077 && printf '%s' "$token" > /etc/fleetci/github.token)
+fi
+%{ endif ~}
+
+# fleetci's runner: appended to config.toml only once its token checks out
+token=$(aws ssm get-parameters --names "${fleetci.token.name}" --with-decryption --region "${fleetci.token.region}" | jq -r ".Parameters | .[0] | .Value")
+
+valid_token=false
+if [[ "$token" != "null" ]]
+then
+    valid_token_response=$(curl -s -o /dev/null -w "%%{response_code}" --request POST -L "${runners_gitlab_url}/api/v4/runners/verify" --form "token=$token" )
+    [[ "$valid_token_response" == "200" ]] && valid_token=true
+fi
+
+if [[ "$valid_token" == "true" ]]
+then
+cat >> /etc/gitlab-runner/config.toml <<- 'EOF'
+${fleetci.config}
+EOF
+    sed -i.bak "s/${fleetci.placeholder}/$token/g" /etc/gitlab-runner/config.toml
+%{ if fleetci.on_invalid_token == "fail" ~}
+else
+    echo "Invalid token for fleetci's runner"
+    exit 1
+%{ else ~}
+else
+    echo "Invalid token for fleetci's runner; leaving it out of config.toml"
+%{ endif ~}
+fi
+
+# Every class, the GitHub access and config.toml; the result is in this log
+AWS_DEFAULT_REGION=${aws_region} fleetci check -config /etc/fleetci/fleetci.toml -runner-config /etc/gitlab-runner/config.toml || echo "fleetci check found problems; see above"
+%{ endif ~}
+
 mkdir -p /etc/systemd/system/gitlab-runner.service.d
 # Set the AWS default region to the region of the instance
 cat > /etc/systemd/system/gitlab-runner.service.d/override.conf <<- EOF

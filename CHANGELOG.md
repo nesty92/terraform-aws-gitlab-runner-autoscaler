@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.9.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.8.0...3.9.0) (2026-11-05)
+
+
+### Features
+
+* fleetci on a runner pool instead of a runner of its own ([#53](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/issues/53)) ([1be4254](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/1be425471a081bc3796bd43a40d27137c1731930))
+* fleetci on the main runners ([f057016](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/f0570161c1d517d55cf950c74e6fe359e2019840))
+* opt-in per-job VM classes with fleetci ([#51](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/issues/51)) ([ed0eded](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/ed0eded69ab030911fb8ac51653fd55d3d8e845c))
+
+
+### Bug Fixes
+
+* keep the documented autoscaler defaults when only some are set ([f057016](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/f0570161c1d517d55cf950c74e6fe359e2019840))
+
 ## [3.8.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.7.0...3.8.0) (2026-11-04)
 
 

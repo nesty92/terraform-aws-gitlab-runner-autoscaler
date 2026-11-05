@@ -119,15 +119,11 @@ fleetci = {
 }
 ```
 
-Commit the `ci_include` from the `fleetci` output as `.gitlab/fleetci.yml`:
-
-```sh
-tofu output -json fleetci | jq -r .ci_include > .gitlab/fleetci.yml
-```
+These class names are on fleetci's public GitLab template, so a project only includes it:
 
 ```yaml
 include:
-  - local: .gitlab/fleetci.yml
+  - remote: https://raw.githubusercontent.com/nesty92/fleetci/v0.3.0/templates/gitlab-ci.yml
 
 lint:
   extends: .fleetci-1vcpu-2gb
@@ -137,6 +133,8 @@ build:
   extends: .fleetci-8vcpu-16gb   # or .fleetci for the default class
   script: make
 ```
+
+For classes named otherwise, also commit the `ci_include` from the `fleetci` output as `.gitlab/fleetci.yml`, which works alone too (`tofu output -json fleetci | jq -r .ci_include > .gitlab/fleetci.yml`). See [Picking a class on GitLab](https://github.com/nesty92/fleetci#picking-a-class-on-gitlab).
 
 ```yaml
 # GitHub Actions

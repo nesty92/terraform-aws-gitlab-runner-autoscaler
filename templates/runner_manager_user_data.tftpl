@@ -151,6 +151,30 @@ fi
 
 # Every class, the GitHub access and config.toml; the result is in this log
 AWS_DEFAULT_REGION=${aws_region} fleetci check -config /etc/fleetci/fleetci.toml -runner-config /etc/gitlab-runner/config.toml || echo "fleetci check found problems; see above"
+%{ if fleetci.watchdog ~}
+
+# gitlab-runner never starts a dead fleeting plugin again: the watchdog
+# restarts gitlab-runner when fleetci's plugin has been gone for 30 s
+if fleetci help | grep -q '^  fleetci watchdog'
+then
+cat > /etc/systemd/system/fleetci-watchdog.service <<- 'EOF'
+[Unit]
+Description=Restart gitlab-runner when its fleetci plugin is gone
+After=gitlab-runner.service
+
+[Service]
+ExecStart=/usr/bin/fleetci watchdog -plugin fleeting-plugin-fleetci -restart "systemctl restart gitlab-runner"
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    fleetci_watchdog=true
+else
+    echo "fleetci ${fleetci.version} has no watchdog (0.3.0 or later); running without it"
+fi
+%{ endif ~}
 %{ endif ~}
 
 mkdir -p /etc/systemd/system/gitlab-runner.service.d
@@ -163,6 +187,12 @@ EOF
 systemctl daemon-reload
 systemctl restart gitlab-runner
 systemctl enable gitlab-runner
+%{ if try(fleetci.watchdog, false) ~}
+if [[ "$${fleetci_watchdog:-}" == "true" ]]
+then
+    systemctl enable --now fleetci-watchdog
+fi
+%{ endif ~}
 
 # Verify the runner is registered
 gitlab-runner verify%{ if enable_ssm_agent }

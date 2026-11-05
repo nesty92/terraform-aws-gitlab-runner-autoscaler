@@ -871,6 +871,11 @@ variable "fleetci" {
       fine-grained token with Actions: Read and Administration: Read and write on them.
     github_runner_version = actions/runner release GitHub jobs run: the one packer/fleetci.pkr.hcl unpacked
       (its runner_version), else it is downloaded for each job.
+    watchdog = true (default) runs `fleetci watchdog` beside gitlab-runner, which never starts a dead fleeting
+      plugin again: if fleetci's plugin dies, every class on GitLab and GitHub stops until gitlab-runner restarts.
+      The watchdog restarts gitlab-runner once the plugin has been gone for 30 s, which also ends the jobs of the
+      Manager's other runner pools. Needs fleetci 0.3.0 or later; with an older version the Manager logs that
+      and runs without it.
 
     concurrent (runner_manager.maximum_concurrent_jobs) is raised by the sum of the classes' max_instances.
   EOT
@@ -916,6 +921,7 @@ variable "fleetci" {
       })
     }))
     github_runner_version = optional(string, "2.338.2")
+    watchdog              = optional(bool, true)
   })
   default = null
 

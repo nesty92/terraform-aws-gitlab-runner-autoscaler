@@ -113,6 +113,7 @@ locals {
     placeholder      = local.fleetci_token_placeholder
     on_invalid_token = var.fleetci.on_invalid_token
     github_token     = try(var.fleetci.github.token, null)
+    watchdog         = var.fleetci.watchdog
   }
 
   fleetci_token_arns = var.fleetci == null ? [] : compact([var.fleetci.token.arn, try(var.fleetci.github.token.arn, "")])

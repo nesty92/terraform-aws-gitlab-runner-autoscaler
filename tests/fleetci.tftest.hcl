@@ -165,8 +165,10 @@ run "classes_get_groups_a_runner_and_an_include" {
       "repos = [\"owner/name\"]",
       "fleetci-github-token",
       "fleetci check",
+      "ExecStart=/usr/bin/fleetci watchdog -plugin fleeting-plugin-fleetci",
+      "systemctl enable --now fleetci-watchdog",
     ] : strcontains(aws_instance.runner_manager.user_data, s)])
-    error_message = "The Manager installs fleetci, writes fleetci.toml and its runner, and runs fleetci check."
+    error_message = "The Manager installs fleetci, writes fleetci.toml and its runner, runs fleetci check, and starts the watchdog."
   }
 
   assert {
@@ -182,6 +184,24 @@ run "classes_get_groups_a_runner_and_an_include" {
   assert {
     condition     = yamldecode(output.fleetci.ci_include)[".fleetci-8vcpu-16gb-arm"].variables.FLEETCI_CLASS == "8vcpu-16gb-arm" && yamldecode(output.fleetci.ci_include)[".fleetci"].tags == ["fleetci"]
     error_message = "ci_include has one hidden job per class, on the fleetci tag."
+  }
+}
+
+run "watchdog_can_be_turned_off" {
+  command = apply
+
+  variables {
+    fleetci = {
+      token         = { name = "t", arn = "arn:aws:ssm:us-west-2:111122223333:parameter/t", region = "us-west-2" }
+      default_class = "2vcpu-4gb"
+      classes       = { "2vcpu-4gb" = { instance_types = ["c7a.large"], ami_id = "ami-1" } }
+      watchdog      = false
+    }
+  }
+
+  assert {
+    condition     = strcontains(aws_instance.runner_manager.user_data, "fleetci check") && !strcontains(aws_instance.runner_manager.user_data, "fleetci-watchdog.service")
+    error_message = "watchdog = false installs fleetci without the watchdog."
   }
 }
 

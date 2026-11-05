@@ -267,8 +267,10 @@ locals {
     ))
   }
 
+  # A main runner with fleetci keeps its entry but the [runners.autoscaler]
+  # part, which fleetci_runner_override replaces.
   arch_runner_entries = [
-    for arch in var.architectures : {
+    for arch in var.architectures : merge({
       name     = format("runner-%s", arch)
       url      = var.gitlab_instance_url
       token    = local.runner_tokens[arch].name
@@ -283,7 +285,7 @@ locals {
       connector_config = local.runner_autoscaler_plugin_connector_options[arch]
       plugin_config    = local.runner_autoscaler_plugin_options[arch]
       policy           = local.runner_autoscaler_policy[arch]
-    }
+    }, try(local.fleetci_runner_override[arch], {}))
   ]
 
   template_runner_config = templatefile("${path.module}/templates/runner_manager.tftpl", {

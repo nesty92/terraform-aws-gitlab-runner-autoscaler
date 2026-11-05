@@ -322,6 +322,36 @@ resource "aws_instance" "runner_manager" {
 
   lifecycle {
     create_before_destroy = true
+
+    precondition {
+      condition     = length(local.fleetci_refused.executor) == 0
+      error_message = "fleetci needs the docker-autoscaler executor, which gives each job its VM through vm_isolation: ${join(", ", local.fleetci_refused.executor)}."
+    }
+
+    precondition {
+      condition     = length(local.fleetci_refused.names) == 0
+      error_message = "fleetci class names must match ^[a-z0-9][a-z0-9-]{0,29}$, such as 2vcpu-4gb, and a runner's own class can't also be one of its classes: ${join(", ", local.fleetci_refused.names)}."
+    }
+
+    precondition {
+      condition     = length(local.fleetci_refused.classes) == 0
+      error_message = "Each fleetci class needs architecture amd64 or arm64, at least one instance type, and max_instances, capacity_per_instance and max_use_count of at least 1: ${join(", ", local.fleetci_refused.classes)}."
+    }
+
+    precondition {
+      condition     = length(local.fleetci_refused.spot) == 0
+      error_message = "A fleetci class's spot_allocation_strategy must be ${join(", ", local.fleetci_spot_strategies)}: ${join(", ", local.fleetci_refused.spot)}."
+    }
+
+    precondition {
+      condition     = length(local.fleetci_refused.reuse_with_github) == 0
+      error_message = "fleetci with github needs one job per VM on every class: GitHub steps run on the VM itself, so a job could read or change another job's VM. Set capacity_per_instance = 1 and max_use_count = 1 on the runner's autoscaler options (docker-autoscaler's default max_use_count is 10) and on its classes. To reuse VMs for GitLab and serve GitHub too, use two runners, one reusing and one single-use with github: ${join(", ", local.fleetci_refused.reuse_with_github)}."
+    }
+
+    precondition {
+      condition     = length(local.fleetci_repos) == length(distinct(local.fleetci_repos))
+      error_message = "A GitHub repo can be served by one fleetci runner only: two would each start a runner for the same queued job."
+    }
   }
 }
 

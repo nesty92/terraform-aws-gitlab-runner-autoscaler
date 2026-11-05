@@ -23,7 +23,7 @@ locals {
         fleetci      = local.fleetci_main[arch]
         architecture = arch
         executor     = "docker-autoscaler"
-        autoscaler   = merge(local.pool_executor_defaults["docker-autoscaler"], local.runner_autoscaler_options[arch])
+        autoscaler   = local.runner_autoscaler_options[arch]
         plugin       = { for k, v in local.fleetci_main_plugin[arch] : k => v if v != null }
         connector    = local.runner_autoscaler_plugin_connector_options[arch]
         policy       = local.runner_autoscaler_policy[arch]

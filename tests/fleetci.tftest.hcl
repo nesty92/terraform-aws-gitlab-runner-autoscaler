@@ -64,116 +64,123 @@ run "without_fleetci_nothing_changes" {
   }
 }
 
-run "classes_get_groups_a_runner_and_an_include" {
+run "fleetci_changes_only_the_pools_plugin" {
   command = apply
 
   variables {
-    fleetci = {
-      token = {
-        name   = "fleetci-token"
-        arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/fleetci-token"
-        region = "us-west-2"
-      }
-      default_class = "2vcpu-4gb"
-      classes = {
-        "2vcpu-4gb" = {
-          instance_types = ["t3.medium"]
-          ami_id         = "ami-fleetci-amd64"
-        }
-        "8vcpu-16gb-arm" = {
-          architecture         = "arm64"
-          instance_types       = ["c7g.2xlarge", "c6g.2xlarge"]
-          max_instances        = 2
-          ami_id               = "ami-fleetci-arm64"
-          private_address_only = false
-          user_data            = "#!/bin/sh\necho extra\n"
-          policy = [{
-            periods    = ["* 8-18 * * mon-fri"]
-            timezone   = "Europe/Warsaw"
-            idle_count = 1
-          }]
-        }
-      }
-      github = {
-        repos = ["owner/name"]
+    runner_pools = {
+      ci = {
+        architecture = "amd64"
+        ami_id       = "ami-fleetci-amd64"
         token = {
-          name   = "fleetci-github-token"
-          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/fleetci-github-token"
+          name   = "gitlab-runner-ci-token"
+          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-ci-token"
           region = "us-west-2"
+        }
+        autoscaler = { max_instances = 3, capacity_per_instance = 1, max_use_count = 1 }
+        fleetci = {
+          class = "2vcpu-4gb"
+          classes = {
+            "8vcpu-16gb-arm" = {
+              architecture         = "arm64"
+              instance_types       = ["c7g.2xlarge", "c6g.2xlarge"]
+              max_instances        = 2
+              ami_id               = "ami-fleetci-arm64"
+              private_address_only = false
+              user_data            = "#!/bin/sh\necho extra\n"
+              policy = [{
+                periods    = ["* 8-18 * * mon-fri"]
+                timezone   = "Europe/Warsaw"
+                idle_count = 1
+              }]
+            }
+          }
+          github = {
+            repos = ["owner/name"]
+            token = {
+              name   = "fleetci-github-token"
+              arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/fleetci-github-token"
+              region = "us-west-2"
+            }
+          }
         }
       }
     }
   }
 
   assert {
-    condition     = keys(output.pools) == ["amd64"]
-    error_message = "fleetci's classes are not runner pools."
+    condition     = keys(output.pools) == ["amd64", "ci"] && output.pools.ci.runner_name == "runner-ci"
+    error_message = "fleetci adds no runner: the pool stays the pool."
   }
 
   assert {
-    condition     = keys(output.fleetci.classes) == ["2vcpu-4gb", "8vcpu-16gb-arm"]
-    error_message = "Each class is listed in the fleetci output."
+    condition     = keys(aws_autoscaling_group.gitlab_runner_instance) == ["amd64", "ci", "ci-8vcpu-16gb-arm"]
+    error_message = "The pool keeps its group as its own class; each extra class gets one more."
   }
 
   assert {
-    condition     = aws_autoscaling_group.gitlab_runner_instance["fleetci-2vcpu-4gb"].name == "gitlab-runner-fleetci-2vcpu-4gb-asg" && aws_autoscaling_group.gitlab_runner_instance["fleetci-2vcpu-4gb"].max_size == 4 && aws_autoscaling_group.gitlab_runner_instance["fleetci-8vcpu-16gb-arm"].max_size == 2
-    error_message = "Each class has its own group, as large as its max_instances."
+    condition     = output.fleetci.ci.default_class == "2vcpu-4gb" && output.fleetci.ci.classes["2vcpu-4gb"].asg_name == "gitlab-runner-ci-asg" && output.fleetci.ci.classes["8vcpu-16gb-arm"].asg_name == "gitlab-runner-ci-8vcpu-16gb-arm-asg" && output.fleetci.ci.classes["8vcpu-16gb-arm"].github_label == "fleetci-8vcpu-16gb-arm"
+    error_message = "The fleetci output lists the pool's classes and their groups."
   }
 
   assert {
-    condition     = aws_launch_template.gitlab_runner_instance["fleetci-2vcpu-4gb"].image_id == "ami-fleetci-amd64" && aws_launch_template.gitlab_runner_instance["fleetci-8vcpu-16gb-arm"].image_id == "ami-fleetci-arm64"
-    error_message = "Each class launches its own baked image."
+    condition     = aws_autoscaling_group.gitlab_runner_instance["ci-8vcpu-16gb-arm"].max_size == 2 && aws_launch_template.gitlab_runner_instance["ci-8vcpu-16gb-arm"].image_id == "ami-fleetci-arm64"
+    error_message = "An extra class launches its own image, as many as its max_instances."
   }
 
   assert {
-    condition     = one(aws_launch_template.gitlab_runner_instance["fleetci-2vcpu-4gb"].block_device_mappings).device_name == "/dev/sda1" && one(one(aws_launch_template.gitlab_runner_instance["fleetci-2vcpu-4gb"].block_device_mappings).ebs).volume_size == 30
+    condition     = one(aws_launch_template.gitlab_runner_instance["ci-8vcpu-16gb-arm"].block_device_mappings).device_name == "/dev/sda1" && one(one(aws_launch_template.gitlab_runner_instance["ci-8vcpu-16gb-arm"].block_device_mappings).ebs).volume_size == 30
     error_message = "Ubuntu's root device is /dev/sda1, 30 GiB by default."
   }
 
   assert {
-    condition     = aws_launch_template.gitlab_runner_instance["fleetci-2vcpu-4gb"].user_data == null && base64decode(aws_launch_template.gitlab_runner_instance["fleetci-8vcpu-16gb-arm"].user_data) == "#!/bin/sh\necho extra\n"
-    error_message = "The image is baked, so a class VM runs no boot script unless user_data names one."
+    condition     = base64decode(aws_launch_template.gitlab_runner_instance["ci-8vcpu-16gb-arm"].user_data) == "#!/bin/sh\necho extra\n" && length(aws_autoscaling_group.gitlab_runner_instance["ci-8vcpu-16gb-arm"].mixed_instances_policy) == 1
+    error_message = "A class's user_data and instance types reach its group."
   }
 
   assert {
-    condition     = length(aws_autoscaling_group.gitlab_runner_instance["fleetci-8vcpu-16gb-arm"].mixed_instances_policy) == 1 && length(aws_autoscaling_group.gitlab_runner_instance["fleetci-2vcpu-4gb"].mixed_instances_policy) == 0
-    error_message = "A class with several instance types has a mixed instances policy; one type keeps a plain template."
+    condition     = one(aws_launch_template.gitlab_runner_instance["ci-8vcpu-16gb-arm"].network_interfaces).associate_public_ip_address == "true"
+    error_message = "private_address_only = false gives a class's VMs a public address."
   }
 
   assert {
-    condition = alltrue([for arn in [
-      "arn:aws:ssm:us-west-2:111122223333:parameter/fleetci-token",
-      "arn:aws:ssm:us-west-2:111122223333:parameter/fleetci-github-token",
-    ] : contains(jsondecode(aws_iam_role_policy.ssm_read_runner_tokens.policy).Statement[0].Resource, arn)])
-    error_message = "The Manager may read fleetci's runner token and its GitHub token."
+    condition     = contains(jsondecode(aws_iam_role_policy.ssm_read_runner_tokens.policy).Statement[0].Resource, "arn:aws:ssm:us-west-2:111122223333:parameter/fleetci-github-token")
+    error_message = "The Manager may read the pool's GitHub token."
   }
 
   assert {
-    condition     = contains(jsondecode(aws_iam_role_policy.gitlab_runner_manager.policy).Statement[2].Condition.StringEquals["ec2:ResourceTag/aws:autoscaling:groupName"], "gitlab-runner-fleetci-2vcpu-4gb-asg")
-    error_message = "The Manager may reach the class VMs through EC2 Instance Connect."
+    condition     = contains(jsondecode(aws_iam_role_policy.gitlab_runner_manager.policy).Statement[2].Condition.StringEquals["ec2:ResourceTag/aws:autoscaling:groupName"], "gitlab-runner-ci-8vcpu-16gb-arm-asg")
+    error_message = "The Manager may reach an extra class's VMs through EC2 Instance Connect."
   }
 
   assert {
     condition = alltrue([for s in [
-      "concurrent = 16",
-      "capacity_per_instance = 6",
+      "concurrent = 12",
+      "capacity_per_instance = 5",
+      "plugin = \"/usr/bin/fleeting-plugin-fleetci-ci\"",
+      "config_file = \"/etc/fleetci/ci.toml\"",
       "image = \"class-$${FLEETCI_CLASS}\"",
-      "config_file = \"/etc/fleetci/fleetci.toml\"",
-      "[runners.autoscaler.vm_isolation.connector_config]",
-      "name = \"gitlab-runner-fleetci-8vcpu-16gb-arm-asg\"",
+      "nesting_host = \"unix:///fleetci/nesting.sock\"",
+      "ln -sf /usr/bin/fleeting-plugin-fleetci /usr/bin/fleeting-plugin-fleetci-ci",
+      "default_class = \"2vcpu-4gb\"",
+      "[classes.2vcpu-4gb]",
+      "name = \"gitlab-runner-ci-asg\"",
+      "connector_config = { arch = \"amd64\", os = \"linux\", timeout = \"5m\", use_external_addr = false, use_static_credentials = false, username = \"ubuntu\" }",
+      "connector_config = { arch = \"arm64\", timeout = \"5m\", username = \"ubuntu\" }",
+      "name = \"gitlab-runner-ci-8vcpu-16gb-arm-asg\"",
       "[[classes.8vcpu-16gb-arm.policy]]",
       "repos = [\"owner/name\"]",
-      "fleetci-github-token",
-      "fleetci check",
-      "ExecStart=/usr/bin/fleetci watchdog -plugin fleeting-plugin-fleetci",
-      "systemctl enable --now fleetci-watchdog",
+      "token_file = \"/etc/fleetci/ci-github.token\"",
+      "fleetci check -config /etc/fleetci/ci.toml",
+      "ExecStart=/usr/bin/fleetci watchdog -plugin /usr/bin/fleeting-plugin-fleetci-%i",
+      "systemctl enable --now fleetci-watchdog@ci",
     ] : strcontains(aws_instance.runner_manager.user_data, s)])
-    error_message = "The Manager installs fleetci, writes fleetci.toml and its runner, runs fleetci check, and starts the watchdog."
+    error_message = "The pool's runner uses fleetci's plugin, whose config, symlink, check and watchdog the Manager sets up."
   }
 
   assert {
-    condition     = one(aws_launch_template.gitlab_runner_instance["fleetci-8vcpu-16gb-arm"].network_interfaces).associate_public_ip_address == "true" && one(aws_launch_template.gitlab_runner_instance["fleetci-2vcpu-4gb"].network_interfaces).associate_public_ip_address == "false"
-    error_message = "private_address_only = false gives a class's VMs a public address; the default keeps them private."
+    condition     = !strcontains(aws_instance.runner_manager.user_data, "runner-fleetci") && !strcontains(aws_instance.runner_manager.user_data, "fleeting-plugin-aws\"\n  [runners.autoscaler.plugin_config]\n    name = \"gitlab-runner-ci-asg\"")
+    error_message = "There is no separate fleetci runner, and the pool's runner no longer drives its group with fleeting-plugin-aws."
   }
 
   assert {
@@ -182,67 +189,207 @@ run "classes_get_groups_a_runner_and_an_include" {
   }
 
   assert {
-    condition     = yamldecode(output.fleetci.ci_include)[".fleetci-8vcpu-16gb-arm"].variables.FLEETCI_CLASS == "8vcpu-16gb-arm" && yamldecode(output.fleetci.ci_include)[".fleetci"].tags == ["fleetci"]
+    condition     = yamldecode(output.fleetci.ci.ci_include)[".fleetci-8vcpu-16gb-arm"].variables.FLEETCI_CLASS == "8vcpu-16gb-arm" && yamldecode(output.fleetci.ci.ci_include)[".fleetci"].tags == ["fleetci"]
     error_message = "ci_include has one hidden job per class, on the fleetci tag."
   }
 }
 
-run "watchdog_can_be_turned_off" {
+run "reuse_for_gitlab_and_github_in_another_pool" {
   command = apply
 
   variables {
-    fleetci = {
-      token         = { name = "t", arn = "arn:aws:ssm:us-west-2:111122223333:parameter/t", region = "us-west-2" }
-      default_class = "2vcpu-4gb"
-      classes       = { "2vcpu-4gb" = { instance_types = ["c7a.large"], ami_id = "ami-1" } }
-      watchdog      = false
+    runner_pools = {
+      reuse = {
+        architecture = "amd64"
+        ami_id       = "ami-fleetci-amd64"
+        token = {
+          name   = "gitlab-runner-reuse-token"
+          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-reuse-token"
+          region = "us-west-2"
+        }
+        fleetci = {
+          class    = "2vcpu-4gb"
+          watchdog = false
+          classes = {
+            "4vcpu-8gb" = { instance_types = ["c7a.xlarge"], ami_id = "ami-fleetci-amd64", capacity_per_instance = 2, max_use_count = 5 }
+          }
+        }
+      }
+      single = {
+        architecture = "amd64"
+        ami_id       = "ami-fleetci-amd64"
+        token = {
+          name   = "gitlab-runner-single-token"
+          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-single-token"
+          region = "us-west-2"
+        }
+        autoscaler = { max_use_count = 1 }
+        fleetci = {
+          class = "2vcpu-4gb"
+          github = {
+            repos = ["owner/name"]
+            token = {
+              name   = "fleetci-github-token"
+              arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/fleetci-github-token"
+              region = "us-west-2"
+            }
+          }
+        }
+      }
     }
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "fleetci check") && !strcontains(aws_instance.runner_manager.user_data, "fleetci-watchdog.service")
-    error_message = "watchdog = false installs fleetci without the watchdog."
+    condition = alltrue([for s in [
+      "max_use_count = 10",
+      "capacity_per_instance = 2",
+      "max_use_count = 5",
+      "config_file = \"/etc/fleetci/reuse.toml\"",
+      "config_file = \"/etc/fleetci/single.toml\"",
+      "token_file = \"/etc/fleetci/single-github.token\"",
+      "systemctl enable --now fleetci-watchdog@single",
+    ] : strcontains(aws_instance.runner_manager.user_data, s)])
+    error_message = "Each pool runs its own fleetci; the GitLab-only one keeps reusing VMs."
+  }
+
+  assert {
+    condition     = !strcontains(aws_instance.runner_manager.user_data, "fleetci-watchdog@reuse") && !strcontains(aws_instance.runner_manager.user_data, "reuse-github.token")
+    error_message = "watchdog = false and no github leave those out for that pool."
+  }
+
+  assert {
+    condition     = length(aws_instance.runner_manager.user_data) < 16384
+    error_message = "EC2 refuses user data over 16 KB, with two fleetci pools too."
   }
 }
 
-run "default_class_must_be_a_class" {
+run "github_refuses_a_pool_that_reuses_vms" {
   command = plan
 
   variables {
-    fleetci = {
-      token         = { name = "t", arn = "arn:aws:ssm:us-west-2:111122223333:parameter/t", region = "us-west-2" }
-      default_class = "huge"
-      classes       = { "2vcpu-4gb" = { instance_types = ["t3.medium"], ami_id = "ami-1" } }
+    runner_pools = {
+      ci = {
+        architecture = "amd64"
+        ami_id       = "ami-1"
+        token = {
+          name   = "gitlab-runner-ci-token"
+          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-ci-token"
+          region = "us-west-2"
+        }
+        fleetci = {
+          class = "2vcpu-4gb"
+          github = {
+            repos = ["owner/name"]
+            token = {
+              name   = "fleetci-github-token"
+              arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/fleetci-github-token"
+              region = "us-west-2"
+            }
+          }
+        }
+      }
     }
   }
 
-  expect_failures = [var.fleetci]
+  expect_failures = [var.runner_pools]
+}
+
+run "github_refuses_a_class_that_reuses_vms" {
+  command = plan
+
+  variables {
+    runner_pools = {
+      ci = {
+        architecture = "amd64"
+        ami_id       = "ami-1"
+        token = {
+          name   = "gitlab-runner-ci-token"
+          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-ci-token"
+          region = "us-west-2"
+        }
+        autoscaler = { max_use_count = 1 }
+        fleetci = {
+          class   = "2vcpu-4gb"
+          classes = { big = { instance_types = ["c7a.2xlarge"], ami_id = "ami-1", max_use_count = 3 } }
+          github = {
+            repos = ["owner/name"]
+            token = {
+              name   = "fleetci-github-token"
+              arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/fleetci-github-token"
+              region = "us-west-2"
+            }
+          }
+        }
+      }
+    }
+  }
+
+  expect_failures = [var.runner_pools]
+}
+
+run "fleetci_needs_docker_autoscaler" {
+  command = plan
+
+  variables {
+    runner_pools = {
+      ci = {
+        architecture = "amd64"
+        executor     = "instance"
+        ami_id       = "ami-1"
+        token = {
+          name   = "gitlab-runner-ci-token"
+          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-ci-token"
+          region = "us-west-2"
+        }
+        fleetci = { class = "2vcpu-4gb" }
+      }
+    }
+  }
+
+  expect_failures = [var.runner_pools]
 }
 
 run "class_names_are_checked" {
   command = plan
 
   variables {
-    fleetci = {
-      token         = { name = "t", arn = "arn:aws:ssm:us-west-2:111122223333:parameter/t", region = "us-west-2" }
-      default_class = "Big_One"
-      classes       = { "Big_One" = { instance_types = ["t3.medium"], ami_id = "ami-1" } }
+    runner_pools = {
+      ci = {
+        architecture = "amd64"
+        ami_id       = "ami-1"
+        token = {
+          name   = "gitlab-runner-ci-token"
+          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-ci-token"
+          region = "us-west-2"
+        }
+        fleetci = { class = "Big_One" }
+      }
     }
   }
 
-  expect_failures = [var.fleetci]
+  expect_failures = [var.runner_pools]
 }
 
 run "a_class_needs_an_instance_type" {
   command = plan
 
   variables {
-    fleetci = {
-      token         = { name = "t", arn = "arn:aws:ssm:us-west-2:111122223333:parameter/t", region = "us-west-2" }
-      default_class = "2vcpu-4gb"
-      classes       = { "2vcpu-4gb" = { instance_types = [], ami_id = "ami-1" } }
+    runner_pools = {
+      ci = {
+        architecture = "amd64"
+        ami_id       = "ami-1"
+        token = {
+          name   = "gitlab-runner-ci-token"
+          arn    = "arn:aws:ssm:us-west-2:111122223333:parameter/gitlab-runner-ci-token"
+          region = "us-west-2"
+        }
+        fleetci = {
+          class   = "2vcpu-4gb"
+          classes = { big = { instance_types = [], ami_id = "ami-1" } }
+        }
+      }
     }
   }
 
-  expect_failures = [var.fleetci]
+  expect_failures = [var.runner_pools]
 }

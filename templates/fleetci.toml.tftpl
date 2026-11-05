@@ -1,15 +1,21 @@
-# Written by terraform-aws-gitlab-runner-autoscaler from its fleetci input.
+# Written by terraform-aws-gitlab-runner-autoscaler from its runner pool's fleetci input.
 default_class = ${jsonencode(default_class)}
 %{~ for name, class in classes }
 
 [classes.${name}]
 plugin = "/usr/bin/fleeting-plugin-aws"
 max_instances = ${class.max_instances}
+%{~ if class.capacity_per_instance != 1 }
+capacity_per_instance = ${class.capacity_per_instance}
+%{~ endif }
+%{~ if class.max_use_count != 1 }
+max_use_count = ${class.max_use_count}
+%{~ endif }
 %{~ if class.acquire_timeout != null }
 acquire_timeout = ${jsonencode(class.acquire_timeout)}
 %{~ endif }
-plugin_config = { name = ${jsonencode(class.asg_name)}, region = ${jsonencode(region)} }
-connector_config = { username = ${jsonencode(class.username)}, timeout = "5m" }
+plugin_config = { ${join(", ", [for k, v in merge(class.plugin, { name = class.asg_name, region = region }) : "${k} = ${jsonencode(v)}"])} }
+connector_config = { ${join(", ", [for k, v in class.connector : "${k} = ${jsonencode(v)}"])} }
 %{~ for policy in class.policy }
 
 [[classes.${name}.policy]]
@@ -22,6 +28,6 @@ ${key} = ${jsonencode(value)}
 
 [github]
 repos = ${jsonencode(github.repos)}
-token_file = "/etc/fleetci/github.token"
+token_file = ${jsonencode(github_token_file)}
 runner_version = ${jsonencode(github_runner_version)}
 %{~ endif }

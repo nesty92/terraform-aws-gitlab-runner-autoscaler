@@ -854,7 +854,7 @@ variable "fleetci" {
         non-burstable types (c7a, c7i, m7i, m7g): a T type (t3, t3a, t4g) bills surplus CPU credits for
         a CPU-bound job, and in standard mode starts with no credits, throttled to its baseline.
       max_instances = The most VMs at once (default 4); a ceiling, nothing runs until a job needs it.
-      ami_id = The class's image, built with packer/fleetci.pkr.hcl (Ubuntu 24.04 with Docker and actions/runner),
+      ami_id = The class's image, built with packer/fleetci/fleetci.pkr.hcl (Ubuntu 24.04 with Docker and actions/runner),
         one per architecture. Its own build needs Docker, the connector's user in the docker group, EC2 Instance
         Connect and, for GitHub jobs, libicu and actions/runner in ~/actions-runner-<github_runner_version>.
       user_data = Run on each VM's boot, for what the image lacks; none by default.
@@ -869,7 +869,7 @@ variable "fleetci" {
     docker = [runners.docker] options for fleetci's runner; default image ubuntu:24.04.
     github = GitHub Actions jobs on the same classes: repos as owner/name, and the SSM parameter holding a
       fine-grained token with Actions: Read and Administration: Read and write on them.
-    github_runner_version = actions/runner release GitHub jobs run: the one packer/fleetci.pkr.hcl unpacked
+    github_runner_version = actions/runner release GitHub jobs run: the one packer/fleetci/fleetci.pkr.hcl unpacked
       (its runner_version), else it is downloaded for each job.
     watchdog = true (default) runs `fleetci watchdog` beside gitlab-runner, which never starts a dead fleeting
       plugin again: if fleetci's plugin dies, every class on GitLab and GitHub stops until gitlab-runner restarts.

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Provisions a fleetci class image: Ubuntu with Docker, like GitHub's
 # ubuntu-latest, and actions/runner unpacked so GitHub jobs don't download
-# it. Run by fleetci.pkr.hcl with RUNNER_USER, RUNNER_VERSION and RUNNER_ARCH.
+# it. Run by fleetci.pkr.hcl, beside it, with RUNNER_USER, RUNNER_VERSION and RUNNER_ARCH.
 #
 # Class VMs have no instance profile, so their metadata holds no
 # credentials; the DOCKER-USER rule still keeps job containers from it.

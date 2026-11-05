@@ -31,6 +31,18 @@ variable "runner_version" {
   description = "actions/runner release to unpack; keep fleetci.github_runner_version equal to it"
 }
 
+variable "associate_public_ip_address" {
+  type        = bool
+  default     = null
+  description = "true gives the builder a public IPv4, for a public subnet that does not assign one; unset follows the subnet"
+}
+
+variable "tags" {
+  type        = map(string)
+  default     = {}
+  description = "Extra tags for the AMI and its snapshot, such as a cost allocation tag"
+}
+
 locals {
   timestamp = regex_replace(timestamp(), "[- TZ:]", "")
   name      = "fleetci-${local.timestamp}"
@@ -53,6 +65,14 @@ source "amazon-ebs" "ubuntu-amd64" {
     owners      = ["099720109477"] # Canonical
   }
   ssh_username = "ubuntu"
+
+  associate_public_ip_address = var.associate_public_ip_address
+  # Packer's temporary security group admits SSH from the builder's own
+  # address only, not from anywhere.
+  temporary_security_group_source_public_ip = true
+
+  tags          = merge({ Name = local.name }, var.tags)
+  snapshot_tags = merge({ Name = local.name }, var.tags)
 }
 
 source "amazon-ebs" "ubuntu-arm64" {
@@ -72,6 +92,14 @@ source "amazon-ebs" "ubuntu-arm64" {
     owners      = ["099720109477"] # Canonical
   }
   ssh_username = "ubuntu"
+
+  associate_public_ip_address = var.associate_public_ip_address
+  # Packer's temporary security group admits SSH from the builder's own
+  # address only, not from anywhere.
+  temporary_security_group_source_public_ip = true
+
+  tags          = merge({ Name = local.name }, var.tags)
+  snapshot_tags = merge({ Name = local.name }, var.tags)
 }
 
 build {
@@ -81,8 +109,9 @@ build {
   ]
 
   provisioner "shell" {
-    script          = "${path.root}/fleetci-vm.sh"
-    execute_command = "sudo -E bash '{{ .Path }}'"
+    script = "${path.root}/fleetci-vm.sh"
+    # {{ .Vars }} carries environment_vars; without it the script sees none.
+    execute_command = "sudo {{ .Vars }} bash '{{ .Path }}'"
     environment_vars = [
       "RUNNER_USER=ubuntu",
       "RUNNER_VERSION=${var.runner_version}",

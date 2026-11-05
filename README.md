@@ -18,18 +18,18 @@ The Runner Manager is deployed as an EC2 instance and the Runner instances are d
 [![Architecture Diagram](https://raw.githubusercontent.com/nesty92/terraform-aws-gitlab-runner-autoscaler/main/docs/architecture.png)](https://raw.githubusercontent.com/nesty92/terraform-aws-gitlab-runner-autoscaler/main/docs/architecture.png)
 *Architecture Diagram - See: [GitLab Runner Autoscaler documentation](https://docs.gitlab.com/runner/runner_autoscale/#gitlab-runner-autoscaler) for more details*
 
-With `fleetci` set on a runner pool, that pool's runner drives its VMs through fleetci instead of fleeting-plugin-aws, and each job gets a fresh VM from the class it names:
+With fleetci turned on for a runner, that runner drives its VMs through fleetci instead of fleeting-plugin-aws, and each job gets a fresh VM from the class it names:
 
 ```mermaid
 flowchart LR
   gl[GitLab] -- "job with FLEETCI_CLASS" --> gr
   gh[GitHub Actions] -- "queued job, runs-on: fleetci-&lt;class&gt;" --> fc
   subgraph manager [Runner Manager]
-    gr[gitlab-runner<br>runner-ci, docker-autoscaler] -- "vm_isolation: class-&lt;class&gt;" --> fc[fleeting-plugin-fleetci-ci]
+    gr[gitlab-runner<br>runner-amd64, docker-autoscaler] -- "vm_isolation: class-&lt;class&gt;" --> fc[fleeting-plugin-fleetci-amd64]
   end
-  fc -- "one fleeting-plugin-aws per class" --> a1[ASG ci: 2vcpu-4gb]
-  fc --> a2[ASG ci-1vcpu-2gb]
-  fc --> a3[ASG ci-8vcpu-16gb]
+  fc -- "one fleeting-plugin-aws per class" --> a1[ASG amd64: 2vcpu-4gb]
+  fc --> a2[ASG amd64-1vcpu-2gb]
+  fc --> a3[ASG amd64-8vcpu-16gb]
   a1 -. "one VM per job, removed after" .-> vm[(VM: Docker,<br>actions/runner)]
 ```
 
@@ -93,40 +93,40 @@ runner_pools = {
 
 ## Per-Job VM Classes (fleetci)
 
-`fleetci` on a runner pool lets a job name the machine size it needs and get a VM of that size, through [fleetci](https://github.com/nesty92/fleetci). GitLab jobs pick a class with `extends:`, and GitHub Actions jobs with `runs-on:`. It is opt-in, and it changes one thing: the pool's `[runners.autoscaler]` uses fleeting-plugin-fleetci instead of fleeting-plugin-aws. The pool keeps its runner, token, tags, docker options and cache. Its own Auto Scaling group, with its autoscaler and policy, becomes the class named by `class`, which is also the default, so a job that names no class runs where it ran before. `classes` adds one more group per class.
+fleetci lets a job name the machine size it needs and get a VM of that size, through [fleetci](https://github.com/nesty92/fleetci). GitLab jobs pick a class with `extends:`, and GitHub Actions jobs with `runs-on:`. It is opt-in, for any docker-autoscaler runner you have: `runner_fleetci_amd64` or `runner_fleetci_arm64` for the main runners, `fleetci` for a pool in `runner_pools`. It changes one thing: the runner's `[runners.autoscaler]` uses fleeting-plugin-fleetci instead of fleeting-plugin-aws. The runner keeps its registration, token, tags, docker options and cache; nothing new is registered. Its own Auto Scaling group, with its autoscaler options and policy, becomes the class named by `class`, which is also the default, so a job that names no class runs where it ran before. `classes` adds one more group per class.
 
 ```hcl
-runner_pools = {
-  ci = {
-    architecture = "amd64"
-    ami_id       = var.fleetci_ami_amd64 # a fleetci image, see below
-    token        = { name = aws_ssm_parameter.ci_token.name, arn = aws_ssm_parameter.ci_token.arn, region = "eu-north-1" }
-    instance     = { type = "c7a.large", instance_type_overrides = [{ instance_type = "c7i.large" }] }
-    autoscaler   = { max_instances = 4, capacity_per_instance = 1, max_use_count = 1 } # one job per VM, for github
-    fleetci = {
-      class = "2vcpu-4gb"
-      classes = {
-        "1vcpu-2gb"  = { instance_types = ["c7a.medium"], max_instances = 6, ami_id = var.fleetci_ami_amd64 } # linters, PR title checks
-        "8vcpu-16gb" = { instance_types = ["c7i.2xlarge", "c6i.2xlarge"], max_instances = 2, ami_id = var.fleetci_ami_amd64 }
-      }
-      github = {                 # optional
-        repos = ["owner/name"]
-        token = {                # fine-grained: Actions read, Administration read and write
-          name   = aws_ssm_parameter.fleetci_github_token.name
-          arn    = aws_ssm_parameter.fleetci_github_token.arn
-          region = "eu-north-1"
-        }
-      }
+runner_instance_amd64 = {
+  ami_id                  = var.fleetci_ami_amd64 # a fleetci image, see below
+  type                    = "c7a.large"
+  instance_type_overrides = [{ instance_type = "c7i.large" }]
+}
+runner_autoscaler_options_amd64 = { max_instances = 4, capacity_per_instance = 1, max_use_count = 1 } # one job per VM, for github
+
+runner_fleetci_amd64 = {
+  class = "2vcpu-4gb"
+  classes = {
+    "1vcpu-2gb"  = { instance_types = ["c7a.medium"], max_instances = 6, ami_id = var.fleetci_ami_amd64 } # linters, PR title checks
+    "8vcpu-16gb" = { instance_types = ["c7i.2xlarge", "c6i.2xlarge"], max_instances = 2, ami_id = var.fleetci_ami_amd64 }
+  }
+  github = {                     # optional
+    repos = ["owner/name"]
+    token = {                    # fine-grained: Actions read, Administration read and write
+      name   = aws_ssm_parameter.fleetci_github_token.name
+      arn    = aws_ssm_parameter.fleetci_github_token.arn
+      region = "eu-north-1"
     }
   }
 }
 ```
 
-Add the tag `fleetci` to the pool's runner in GitLab. These class names are on fleetci's public GitLab template, so a project only includes it:
+A pool takes the same block as `runner_pools.<key>.fleetci`, with the pool's `ami_id`, `instance`, `autoscaler` and `policy` as its own class.
+
+Add the tag `fleetci` to that runner in GitLab. These class names are on fleetci's public GitLab template, so a project only includes it:
 
 ```yaml
 include:
-  - remote: https://raw.githubusercontent.com/nesty92/fleetci/v0.3.0/templates/gitlab-ci.yml
+  - remote: https://raw.githubusercontent.com/nesty92/fleetci/v0.4.0/templates/gitlab-ci.yml
 
 lint:
   extends: .fleetci-1vcpu-2gb
@@ -137,7 +137,7 @@ build:
   script: make
 ```
 
-For classes named otherwise, also commit the pool's `ci_include` from the `fleetci` output as `.gitlab/fleetci.yml`, which works alone too (`tofu output -json fleetci | jq -r .ci.ci_include > .gitlab/fleetci.yml`). See [Picking a class on GitLab](https://github.com/nesty92/fleetci#picking-a-class-on-gitlab).
+For classes named otherwise, also commit the runner's `ci_include` from the `fleetci` output as `.gitlab/fleetci.yml`, which works alone too (`tofu output -json fleetci | jq -r .amd64.ci_include > .gitlab/fleetci.yml`). See [Picking a class on GitLab](https://github.com/nesty92/fleetci#picking-a-class-on-gitlab).
 
 ```yaml
 # GitHub Actions
@@ -145,15 +145,16 @@ runs-on: fleetci-8vcpu-16gb      # or fleetci for the default class
 # a PR title and description check: runs-on: fleetci-1vcpu-2gb
 ```
 
-- **Reusing VMs is for GitLab only:** a class may keep a VM for several jobs (`capacity_per_instance`, `max_use_count`; for the pool's own class, its `autoscaler`). A GitHub job runs its steps on the VM itself, so it could read or change another job's VM, and a pool with `github` is refused unless every class runs one job per VM. Note docker-autoscaler's default `max_use_count` is 10. To reuse VMs for GitLab and serve GitHub too, use two pools: one reusing, one single-use with `github`. Single-use classes serve both forges safely, since every VM is removed after its job.
-- **One group per class:** each extra class gets its own launch template and Auto Scaling group (`gitlab-runner-<pool>-<class>-asg`), on spot, with no instance profile. They are covered by the Manager's IAM policy, like a pool's. VMs boot only when a job needs one; `policy` keeps some warm by time of day, as `runner_autoscaler_policy_amd64` does.
+- **Reusing VMs is for GitLab only:** a class may keep a VM for several jobs (`capacity_per_instance`, `max_use_count`; for the runner's own class, its autoscaler options). A GitHub job runs its steps on the VM itself, so it could read or change another job's VM, and a runner with `github` is refused unless every class runs one job per VM. Note docker-autoscaler's default `max_use_count` is 10. To reuse VMs for GitLab and serve GitHub too, use two runners: one reusing (say the main runner), one single-use with `github` (say a pool). Single-use classes serve both forges safely, since every VM is removed after its job.
+- **One group per class:** each extra class gets its own launch template and Auto Scaling group (`gitlab-runner-<runner>-<class>-asg`, such as `gitlab-runner-amd64-8vcpu-16gb-asg`), on spot, with no instance profile. They are covered by the Manager's IAM policy, like a pool's. VMs boot only when a job needs one; `policy` keeps some warm by time of day, as `runner_autoscaler_policy_amd64` does.
 - **The VM image is baked:** `packer/fleetci/fleetci.pkr.hcl` builds one Ubuntu 24.04 AMI per architecture with Docker, libicu and actions/runner, and blocks job containers from reaching instance metadata. Nothing is installed at boot, so a VM is ready as soon as Docker answers. Keep `github_runner_version` equal to the image's `runner_version`; otherwise each GitHub job downloads the runner. `user_data` adds a boot script for anything the image lacks.
-- **On the Manager:** the Manager downloads the fleetci release `fleetci_version`, checks it against the release's `checksums.txt`, and for each fleetci pool writes `/etc/fleetci/<pool>.toml` and links the plugin as `/usr/bin/fleeting-plugin-fleetci-<pool>`, which the pool's `config.toml` entry names. The entry keeps `runner_cache`, `job_variables` and `feature_flags`, and takes as many jobs at once as the pool's classes hold. `runner_manager.maximum_concurrent_jobs` is raised by the extra classes' share. Last it runs `fleetci check`, whose result is in the Manager's cloud-init log. Several pools may have fleetci, each with its own classes; a GitHub repo can be served by one of them only.
-- **If fleetci's plugin dies:** gitlab-runner never starts a fleeting plugin again, so that pool would stop. A `fleetci-watchdog@<pool>` service restarts gitlab-runner once the pool's plugin has been gone for 30 s; that also ends the jobs of the Manager's other runners. `watchdog = false` leaves it out.
+- **On the Manager:** the Manager downloads the fleetci release `fleetci_version`, checks it against the release's `checksums.txt`, and for each runner with fleetci writes `/etc/fleetci/<runner>.toml` (`amd64`, `arm64` or the pool's key) and links the plugin as `/usr/bin/fleeting-plugin-fleetci-<runner>`, which the runner's `config.toml` entry names. The entry keeps `runner_cache`, `job_variables` and `feature_flags`, and takes as many jobs at once as the runner's classes hold. `runner_manager.maximum_concurrent_jobs` is raised by the extra classes' share. Last it runs `fleetci check`, whose result is in the Manager's cloud-init log. Several runners may have fleetci, each with its own classes; a GitHub repo can be served by one of them only.
+- **If fleetci's plugin dies:** gitlab-runner never starts a fleeting plugin again, so that runner would stop. A `fleetci-watchdog@<runner>` service restarts gitlab-runner once the runner's plugin has been gone for 30 s; that also ends the jobs of the Manager's other runners. `watchdog = false` leaves it out.
 - **Non-burstable types:** T types (t3, t3a, t4g) launch in unlimited mode with no launch credits, so a CPU-bound job spends surplus credits, billed when the VM is terminated at $0.05 per vCPU-hour. On a t3.medium at full CPU that is about four times its spot price. Standard mode avoids the charge but starts a fresh VM with no credits, throttled to its baseline (20% of each vCPU on a t3.medium). The classes above use c7a, c7i and c6i; a T type suits only jobs that mostly wait.
 - **Network:** every VM is new, so each job pulls its images and dependencies again. Through a NAT gateway that costs $0.046/GB processed (Stockholm) on top of the gateway's $0.046/hour, and a 1 GB pull then costs as much as the VM. `private_address_only = false` on a class in public subnets (see [Runner Subnets](#runner-subnets)) trades it for a public IPv4 at $0.005/hour per VM. Data leaving AWS costs $0.09/GB after the first 100 GB a month: artifacts, GitHub's `actions/cache` uploads, and registry pushes. Downloads into AWS are free.
 - **Caches:** GitLab jobs use `runner_cache` like the other runners. An S3 gateway endpoint in the VPC keeps that traffic off the NAT and free; S3 storage is $0.023/GB-month. GitHub jobs keep `actions/cache` on GitHub, so restores are free downloads and saves are egress. Images used by every job can be pre-pulled into the class image in `packer/fleetci/fleetci-vm.sh`, so no job downloads them.
 - **Changes replace the Manager,** as a pool change does.
+- **Turning it off:** remove the block; the runner goes back to fleeting-plugin-aws on its own group, and the extra groups are destroyed. Keeping the fleetci image works with `username = "ubuntu"` in its connector options.
 
 How this compares with GitHub-hosted runners on 104M real jobs, network included: [fleetci cost comparison](https://github.com/nesty92/fleetci/blob/main/docs/cost.md).
 

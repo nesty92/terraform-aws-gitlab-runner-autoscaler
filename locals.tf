@@ -23,9 +23,12 @@ locals {
     amd64 = { for k, v in var.runner_docker_options_amd64 : k => v if v != null }
   }
 
+  # The documented defaults fill in what the consumer leaves out: the Auto
+  # Scaling group needs max_instances, and gitlab-runner's own defaults
+  # (max_use_count 0, unlimited) aren't the module's.
   autoscaler_options_by_arch = {
-    arm64 = { for k, v in var.runner_autoscaler_options_arm64 : k => v if v != null }
-    amd64 = { for k, v in var.runner_autoscaler_options_amd64 : k => v if v != null }
+    arm64 = merge(local.pool_executor_defaults["docker-autoscaler"], { for k, v in var.runner_autoscaler_options_arm64 : k => v if v != null })
+    amd64 = merge(local.pool_executor_defaults["docker-autoscaler"], { for k, v in var.runner_autoscaler_options_amd64 : k => v if v != null })
   }
 
   plugin_connector_options_by_arch = {
@@ -267,8 +270,10 @@ locals {
     ))
   }
 
+  # A main runner with fleetci keeps its entry but the [runners.autoscaler]
+  # part, which fleetci_runner_override replaces.
   arch_runner_entries = [
-    for arch in var.architectures : {
+    for arch in var.architectures : merge({
       name     = format("runner-%s", arch)
       url      = var.gitlab_instance_url
       token    = local.runner_tokens[arch].name
@@ -283,7 +288,7 @@ locals {
       connector_config = local.runner_autoscaler_plugin_connector_options[arch]
       plugin_config    = local.runner_autoscaler_plugin_options[arch]
       policy           = local.runner_autoscaler_policy[arch]
-    }
+    }, try(local.fleetci_runner_override[arch], {}))
   ]
 
   template_runner_config = templatefile("${path.module}/templates/runner_manager.tftpl", {

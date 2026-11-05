@@ -699,7 +699,8 @@ variable "runner_pools" {
     docker = [runners.docker] options, as runner_docker_options_amd64; only with docker-autoscaler.
     connector = As runner_autoscaler_plugin_connector_options_amd64.
     plugin = As runner_autoscaler_plugin_options_amd64; the Auto Scaling group's name is always set by the module.
-    fleetci = Opt-in per-job VM classes with fleetci (https://github.com/nesty92/fleetci), on a docker-autoscaler pool.
+    fleetci = Opt-in per-job VM classes with fleetci (https://github.com/nesty92/fleetci), on a docker-autoscaler pool;
+      runner_fleetci_amd64 and runner_fleetci_arm64 do the same for the main runners.
       The pool stays the same runner, with the same token, tags, docker options and cache; only its
       [runners.autoscaler] changes, from fleeting-plugin-aws to fleeting-plugin-fleetci. The pool's own Auto Scaling
       group, with its autoscaler and policy, becomes the class named by `class`, which is also the default: a job that
@@ -734,7 +735,7 @@ variable "runner_pools" {
         one job per VM: GitHub steps run on the VM itself, so a job could read or change another job's VM. The
         pool's own class reuses VMs unless autoscaler sets capacity_per_instance = 1 and max_use_count = 1
         (docker-autoscaler's default max_use_count is 10). To reuse VMs for GitLab and serve GitHub too, use two
-        pools.
+        runners (a pool, or a main runner with runner_fleetci_amd64 or runner_fleetci_arm64).
       github_runner_version = actions/runner release GitHub jobs run: the image's (packer's runner_version), else it
         is downloaded for each job.
       watchdog = true (default) runs `fleetci watchdog` beside gitlab-runner, which never starts a dead fleeting
@@ -924,51 +925,120 @@ variable "runner_pools" {
     condition     = alltrue([for pool in values(var.runner_pools) : (pool.builds_dir == null) == (pool.cache_dir == null)])
     error_message = "Set builds_dir and cache_dir together: the runner skips the cache when one is absolute and the other relative."
   }
+}
+
+variable "runner_fleetci_amd64" {
+  description = <<-EOT
+    Opt-in per-job VM classes with fleetci (https://github.com/nesty92/fleetci) on runner-amd64, as
+    runner_pools.<key>.fleetci does for a pool (see its description). The runner keeps its token, tags, docker options
+    and cache; only its [runners.autoscaler] changes, from fleeting-plugin-aws to fleeting-plugin-fleetci. Its own Auto
+    Scaling group, with runner_autoscaler_options_amd64 and runner_autoscaler_policy_amd64, becomes the class named by
+    `class`; runner_instance_amd64.ami_id must then be a fleetci image. Extra classes get groups named
+    gitlab-runner-amd64-<class>-asg. With github, set runner_autoscaler_options_amd64 to capacity_per_instance = 1
+    and max_use_count = 1: its default max_use_count is 10, which reuses VMs.
+  EOT
+  type = object({
+    class           = string
+    acquire_timeout = optional(string)
+    classes = optional(map(object({
+      architecture             = optional(string, "amd64")
+      instance_types           = list(string)
+      max_instances            = optional(number, 4)
+      capacity_per_instance    = optional(number, 1)
+      max_use_count            = optional(number, 1)
+      ami_id                   = string
+      user_data                = optional(string)
+      username                 = optional(string, "ubuntu")
+      volume_size              = optional(number, 30)
+      acquire_timeout          = optional(string)
+      subnet_ids               = optional(list(string))
+      private_address_only     = optional(bool, true)
+      spot_allocation_strategy = optional(string, "price-capacity-optimized")
+      policy = optional(list(object({
+        periods            = optional(list(string))
+        timezone           = optional(string)
+        idle_count         = optional(number)
+        idle_time          = optional(string)
+        scale_factor       = optional(number)
+        scale_factor_limit = optional(number)
+      })), [])
+    })), {})
+    github = optional(object({
+      repos = list(string)
+      token = object({
+        name   = string
+        arn    = string
+        region = string
+      })
+    }))
+    github_runner_version = optional(string, "2.338.2")
+    watchdog              = optional(bool, true)
+  })
+  default = null
 
   validation {
-    condition     = length(flatten([for p in values(var.runner_pools) : try(p.fleetci.github.repos, [])])) == length(distinct(flatten([for p in values(var.runner_pools) : try(p.fleetci.github.repos, [])])))
-    error_message = "A GitHub repo can be served by one fleetci pool only: two would each start a runner for the same queued job."
+    condition     = var.runner_fleetci_amd64 == null || contains(coalesce(var.architectures, []), "amd64")
+    error_message = "runner_fleetci_amd64 needs amd64 in architectures: it turns on fleetci for runner-amd64."
   }
+}
+
+variable "runner_fleetci_arm64" {
+  description = <<-EOT
+    Opt-in per-job VM classes with fleetci (https://github.com/nesty92/fleetci) on runner-arm64, as
+    runner_pools.<key>.fleetci does for a pool (see its description). The runner keeps its token, tags, docker options
+    and cache; only its [runners.autoscaler] changes, from fleeting-plugin-aws to fleeting-plugin-fleetci. Its own Auto
+    Scaling group, with runner_autoscaler_options_arm64 and runner_autoscaler_policy_arm64, becomes the class named by
+    `class`; runner_instance_arm64.ami_id must then be a fleetci image. Extra classes get groups named
+    gitlab-runner-arm64-<class>-asg. With github, set runner_autoscaler_options_arm64 to capacity_per_instance = 1
+    and max_use_count = 1: its default max_use_count is 10, which reuses VMs.
+  EOT
+  type = object({
+    class           = string
+    acquire_timeout = optional(string)
+    classes = optional(map(object({
+      architecture             = optional(string, "amd64")
+      instance_types           = list(string)
+      max_instances            = optional(number, 4)
+      capacity_per_instance    = optional(number, 1)
+      max_use_count            = optional(number, 1)
+      ami_id                   = string
+      user_data                = optional(string)
+      username                 = optional(string, "ubuntu")
+      volume_size              = optional(number, 30)
+      acquire_timeout          = optional(string)
+      subnet_ids               = optional(list(string))
+      private_address_only     = optional(bool, true)
+      spot_allocation_strategy = optional(string, "price-capacity-optimized")
+      policy = optional(list(object({
+        periods            = optional(list(string))
+        timezone           = optional(string)
+        idle_count         = optional(number)
+        idle_time          = optional(string)
+        scale_factor       = optional(number)
+        scale_factor_limit = optional(number)
+      })), [])
+    })), {})
+    github = optional(object({
+      repos = list(string)
+      token = object({
+        name   = string
+        arn    = string
+        region = string
+      })
+    }))
+    github_runner_version = optional(string, "2.338.2")
+    watchdog              = optional(bool, true)
+  })
+  default = null
 
   validation {
-    condition     = alltrue([for p in values(var.runner_pools) : p.fleetci == null || p.executor == "docker-autoscaler"])
-    error_message = "fleetci needs a docker-autoscaler pool: it gives jobs their VM through docker-autoscaler's vm_isolation."
-  }
-
-  validation {
-    condition = alltrue([for p in values(var.runner_pools) : p.fleetci == null ? true : alltrue([
-      for name in concat([p.fleetci.class], keys(p.fleetci.classes)) : can(regex("^[a-z0-9][a-z0-9-]{0,29}$", name))
-    ]) && !contains(keys(p.fleetci.classes), p.fleetci.class)])
-    error_message = "fleetci class names must match ^[a-z0-9][a-z0-9-]{0,29}$, such as 2vcpu-4gb, and the pool's own class can't also be one of classes."
-  }
-
-  validation {
-    condition = alltrue([for p in values(var.runner_pools) : p.fleetci == null ? true : alltrue([
-      for c in values(p.fleetci.classes) : contains(["amd64", "arm64"], c.architecture) && length(c.instance_types) > 0 && c.max_instances >= 1 && c.capacity_per_instance >= 1 && c.max_use_count >= 1
-    ])])
-    error_message = "Each fleetci class needs architecture amd64 or arm64, at least one instance type, and max_instances, capacity_per_instance and max_use_count of at least 1."
-  }
-
-  validation {
-    condition = alltrue([for p in values(var.runner_pools) : p.fleetci == null ? true : alltrue([
-      for c in values(p.fleetci.classes) : contains(["price-capacity-optimized", "capacity-optimized", "capacity-optimized-prioritized", "lowest-price"], c.spot_allocation_strategy)
-    ])])
-    error_message = "spot_allocation_strategy must be price-capacity-optimized, capacity-optimized, capacity-optimized-prioritized or lowest-price."
-  }
-
-  # The pool's own class reuses VMs with docker-autoscaler's defaults
-  # (max_use_count 10), so serving GitHub needs both set to 1.
-  validation {
-    condition = alltrue([for p in values(var.runner_pools) : try(p.fleetci.github, null) == null ? true : (
-      coalesce(p.autoscaler.capacity_per_instance, 1) == 1 && coalesce(p.autoscaler.max_use_count, 10) == 1 &&
-      alltrue([for c in values(p.fleetci.classes) : c.capacity_per_instance == 1 && c.max_use_count == 1])
-    )])
-    error_message = "fleetci with github needs one job per VM on every class: GitHub steps run on the VM itself, so a job could read or change another job's VM. Set the pool's autoscaler capacity_per_instance = 1 and max_use_count = 1 (docker-autoscaler's default max_use_count is 10), and the same on its classes. To reuse VMs for GitLab and serve GitHub too, use two pools."
+    condition     = var.runner_fleetci_arm64 == null || contains(coalesce(var.architectures, []), "arm64")
+    error_message = "runner_fleetci_arm64 needs arm64 in architectures: it turns on fleetci for runner-arm64."
   }
 }
 
 variable "fleetci_version" {
-  description = "fleetci release the Manager installs when a runner pool has fleetci (https://github.com/nesty92/fleetci/releases)."
+  description = "fleetci release the Manager installs when a runner has fleetci (https://github.com/nesty92/fleetci/releases)."
   type        = string
   default     = "0.4.0"
 }

@@ -109,10 +109,10 @@ rm -rf "$fleetci_tmp"
 install -d -m 700 /etc/fleetci
 
 # gitlab-runner never starts a dead fleeting plugin again: a watchdog per
-# pool restarts gitlab-runner when that pool's plugin has been gone for 30 s
+# runner restarts gitlab-runner when that runner's plugin has been gone for 30 s
 cat > /etc/systemd/system/fleetci-watchdog@.service <<- 'EOF'
 [Unit]
-Description=Restart gitlab-runner when the fleetci plugin of pool %i is gone
+Description=Restart gitlab-runner when the fleetci plugin of runner-%i is gone
 After=gitlab-runner.service
 
 [Service]
@@ -123,25 +123,25 @@ RestartSec=10
 [Install]
 WantedBy=multi-user.target
 EOF
-%{ for pool in fleetci.pools ~}
+%{ for runner in fleetci.runners ~}
 
-# fleetci of runner pool ${pool.key}: its plugin by a name of its own
-ln -sf /usr/bin/fleeting-plugin-fleetci /usr/bin/fleeting-plugin-fleetci-${pool.key}
-cat > /etc/fleetci/${pool.key}.toml <<- 'EOF'
-${pool.toml}
+# fleetci of runner-${runner.key}: its plugin by a name of its own
+ln -sf /usr/bin/fleeting-plugin-fleetci /usr/bin/fleeting-plugin-fleetci-${runner.key}
+cat > /etc/fleetci/${runner.key}.toml <<- 'EOF'
+${runner.toml}
 EOF
-chmod 600 /etc/fleetci/${pool.key}.toml
-%{ if pool.github_token != null ~}
-token=$(aws ssm get-parameters --names "${pool.github_token.name}" --with-decryption --region "${pool.github_token.region}" | jq -r ".Parameters | .[0] | .Value")
+chmod 600 /etc/fleetci/${runner.key}.toml
+%{ if runner.github_token != null ~}
+token=$(aws ssm get-parameters --names "${runner.github_token.name}" --with-decryption --region "${runner.github_token.region}" | jq -r ".Parameters | .[0] | .Value")
 if [[ "$token" == "null" ]]
 then
-    echo "fleetci: no GitHub token in ${pool.github_token.name}; pool ${pool.key} runs no GitHub jobs"
+    echo "fleetci: no GitHub token in ${runner.github_token.name}; runner-${runner.key} runs no GitHub jobs"
 else
-    (umask 077 && printf '%s' "$token" > /etc/fleetci/${pool.key}-github.token)
+    (umask 077 && printf '%s' "$token" > /etc/fleetci/${runner.key}-github.token)
 fi
 %{ endif ~}
 # Every class, the GitHub access and config.toml; the result is in this log
-AWS_DEFAULT_REGION=${aws_region} fleetci check -config /etc/fleetci/${pool.key}.toml -runner-config /etc/gitlab-runner/config.toml || echo "fleetci check found problems for pool ${pool.key}; see above"
+AWS_DEFAULT_REGION=${aws_region} fleetci check -config /etc/fleetci/${runner.key}.toml -runner-config /etc/gitlab-runner/config.toml || echo "fleetci check found problems for runner-${runner.key}; see above"
 %{ endfor ~}
 %{ endif ~}
 
@@ -155,9 +155,9 @@ EOF
 systemctl daemon-reload
 systemctl restart gitlab-runner
 systemctl enable gitlab-runner
-%{ for pool in try(fleetci.pools, []) ~}
-%{ if pool.watchdog ~}
-systemctl enable --now fleetci-watchdog@${pool.key}
+%{ for runner in try(fleetci.runners, []) ~}
+%{ if runner.watchdog ~}
+systemctl enable --now fleetci-watchdog@${runner.key}
 %{ endif ~}
 %{ endfor ~}
 

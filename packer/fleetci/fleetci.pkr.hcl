@@ -1,5 +1,5 @@
 # fleetci class images: Ubuntu 24.04 with Docker and actions/runner, for
-# a fleetci pool's ami_id and its fleetci.classes[*].ami_id. One AMI per architecture; every class of that
+# a fleetci runner's own AMI and its classes' ami_id. One AMI per architecture; every class of that
 # architecture can use it.
 packer {
   required_plugins {
@@ -28,7 +28,7 @@ variable "subnet_id" {
 variable "runner_version" {
   type        = string
   default     = "2.338.2"
-  description = "actions/runner release to unpack; keep runner_pools.<pool>.fleetci.github_runner_version equal to it"
+  description = "actions/runner release to unpack; keep the runner's fleetci github_runner_version equal to it"
 }
 
 variable "associate_public_ip_address" {

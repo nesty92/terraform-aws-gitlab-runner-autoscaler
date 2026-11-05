@@ -38,26 +38,26 @@ output "runner_manager_role_name" {
 }
 
 output "fleetci" {
-  description = "Per runner pool with fleetci: its runner name, default class, each class's Auto Scaling group and GitHub label, and ci_include, a GitLab CI include to commit as .gitlab/fleetci.yml (jobs pick a class with extends: .fleetci-<class>; fleetci's public template does the same for its standard classes). Null when no pool has fleetci."
-  value = length(local.fleetci_pools) == 0 ? null : {
-    for key, pool in local.fleetci_pools : key => {
+  description = "Per runner with fleetci (amd64, arm64 or a pool's key): its runner name, default class, each class's Auto Scaling group and GitHub label, and ci_include, a GitLab CI include to commit as .gitlab/fleetci.yml (jobs pick a class with extends: .fleetci-<class>; fleetci's public template does the same for its standard classes). Null when no runner has fleetci."
+  value = length(local.fleetci_runners) == 0 ? null : {
+    for key, r in local.fleetci_runners : key => {
       runner_name   = format("runner-%s", key)
-      default_class = pool.fleetci.class
+      default_class = r.fleetci.class
       classes = {
-        for name in keys(local.fleetci_pool_classes[key]) : name => {
-          asg_name           = aws_autoscaling_group.gitlab_runner_instance[name == pool.fleetci.class ? key : format("%s-%s", key, name)].name
-          asg_arn            = aws_autoscaling_group.gitlab_runner_instance[name == pool.fleetci.class ? key : format("%s-%s", key, name)].arn
-          launch_template_id = aws_launch_template.gitlab_runner_instance[name == pool.fleetci.class ? key : format("%s-%s", key, name)].id
+        for name in keys(local.fleetci_runner_classes[key]) : name => {
+          asg_name           = aws_autoscaling_group.gitlab_runner_instance[name == r.fleetci.class ? key : format("%s-%s", key, name)].name
+          asg_arn            = aws_autoscaling_group.gitlab_runner_instance[name == r.fleetci.class ? key : format("%s-%s", key, name)].arn
+          launch_template_id = aws_launch_template.gitlab_runner_instance[name == r.fleetci.class ? key : format("%s-%s", key, name)].id
           github_label       = format("fleetci-%s", name)
         }
       }
       ci_include = join("\n", [
-        format("# fleetci classes of runner %s (tag fleetci). Default class: %s.", format("runner-%s", key), pool.fleetci.class),
+        format("# fleetci classes of runner %s (tag fleetci). Default class: %s.", format("runner-%s", key), r.fleetci.class),
         "#   extends: .fleetci           # the default class",
         "#   extends: .fleetci-<class>   # one of the classes below",
         yamlencode(merge(
           { ".fleetci" = { tags = ["fleetci"] } },
-          { for name in keys(local.fleetci_pool_classes[key]) : ".fleetci-${name}" => { extends = ".fleetci", variables = { FLEETCI_CLASS = name } } },
+          { for name in keys(local.fleetci_runner_classes[key]) : ".fleetci-${name}" => { extends = ".fleetci", variables = { FLEETCI_CLASS = name } } },
         )),
       ])
     }

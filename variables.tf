@@ -881,7 +881,7 @@ variable "fleetci" {
   EOT
 
   type = object({
-    version = optional(string, "0.2.0")
+    version = optional(string, "0.3.0")
     token = object({
       name   = string
       arn    = string

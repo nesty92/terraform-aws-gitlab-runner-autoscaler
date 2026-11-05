@@ -107,9 +107,10 @@ resource "aws_iam_role_policy" "ssm_read_runner_tokens" {
       {
         Effect = "Allow",
         Action = "ssm:GetParameters",
-        Resource = [
-          for key in local.pool_order : local.pool_tokens[key].arn if local.pool_tokens[key] != null
-        ]
+        Resource = concat(
+          [for key in local.pool_order : local.pool_tokens[key].arn if lookup(local.pool_tokens, key, null) != null],
+          local.fleetci_token_arns,
+        )
       }
     ]
   })
@@ -298,6 +299,7 @@ resource "aws_instance" "runner_manager" {
       }
     ]
 
+    fleetci                     = local.fleetci_manager
     fleeting_plugin_aws_version = var.fleeting_plugin_aws_version
     gitlab_runner_version       = var.gitlab_runner_version
     enable_ssm_agent            = var.runner_manager.enable_ssm_agent

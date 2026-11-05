@@ -73,6 +73,18 @@
         ${key} = ${jsonencode(value)}
       %{~ endfor ~}
 
+    %{~ if try(config.vm_isolation, null) != null ~}
+      [runners.autoscaler.vm_isolation]
+      %{~ for key, value in config.vm_isolation.settings ~}
+        ${key} = ${jsonencode(value)}
+      %{~ endfor ~}
+
+        [runners.autoscaler.vm_isolation.connector_config]
+        %{~ for key, value in config.vm_isolation.connector_config ~}
+          ${key} = ${jsonencode(value)}
+        %{~ endfor ~}
+    %{~ endif ~}
+
     %{~ for index, policy in config.policy ~}
       [[runners.autoscaler.policy]]
       %{~ for key, value in policy ~}

@@ -699,6 +699,49 @@ variable "runner_pools" {
     docker = [runners.docker] options, as runner_docker_options_amd64; only with docker-autoscaler.
     connector = As runner_autoscaler_plugin_connector_options_amd64.
     plugin = As runner_autoscaler_plugin_options_amd64; the Auto Scaling group's name is always set by the module.
+    fleetci = Opt-in per-job VM classes with fleetci (https://github.com/nesty92/fleetci), on a docker-autoscaler pool.
+      The pool stays the same runner, with the same token, tags, docker options and cache; only its
+      [runners.autoscaler] changes, from fleeting-plugin-aws to fleeting-plugin-fleetci. The pool's own Auto Scaling
+      group, with its autoscaler and policy, becomes the class named by `class`, which is also the default: a job that
+      names no class runs where it ran before. GitLab jobs pick a class with `extends: .fleetci-<class>` (fleetci's
+      public template, or the fleetci output's ci_include) and need the tag `fleetci` on this pool's runner; GitHub
+      Actions jobs with `runs-on: fleetci-<class>`. Each fleetci pool runs a fleetci of its own, from
+      /etc/fleetci/<key>.toml; fleetci_version says which release.
+      class = The name of the pool's own class, such as 2vcpu-4gb. The pool's ami_id must then be a fleetci image
+        (see classes.ami_id); fleetci logs in as ubuntu unless connector.username says otherwise.
+      acquire_timeout = How long a job waits for a VM of the pool's class (fleetci's default: 10m).
+      classes = More classes, each an Auto Scaling group of its own (gitlab-runner-<key>-<class>-asg), on spot:
+        architecture = amd64 (default) or arm64.
+        instance_types = The types the group may launch; more than one makes it a mixed instances policy. Prefer
+          non-burstable types (c7a, c7i, m7i, m7g): a T type bills surplus CPU credits for a CPU-bound job.
+        max_instances = The most VMs at once (default 4); a ceiling, nothing runs until a job needs it.
+        capacity_per_instance, max_use_count = Jobs on a VM at once, and before it is removed (both 1: a fresh VM
+          per job). More reuses VMs, which github doesn't allow.
+        ami_id = The class's image, built with packer/fleetci/fleetci.pkr.hcl (Ubuntu 24.04 with Docker and
+          actions/runner), one per architecture.
+        user_data = Run on each VM's boot, for what the image lacks; none by default.
+        username = The SSH user fleetci logs in as (default ubuntu).
+        volume_size = Root volume GiB (default 30).
+        acquire_timeout = How long a job waits for a VM (fleetci's default: 10m).
+        policy = Warm VMs by time of day, as runner_autoscaler_policy_amd64. Empty (default): every VM boots for
+          its job.
+        subnet_ids = Defaults to aws_subnet_ids.
+        private_address_only = false gives each VM a public IPv4 ($0.005/h), for public subnets without a NAT
+          gateway. The Manager still connects privately.
+        spot_allocation_strategy = As runner_instance_amd64's.
+      github = GitHub Actions jobs on the same classes: repos as owner/name, and the SSM parameter holding a
+        fine-grained token with Actions: Read and Administration: Read and write on them. Every class must then run
+        one job per VM: GitHub steps run on the VM itself, so a job could read or change another job's VM. The
+        pool's own class reuses VMs unless autoscaler sets capacity_per_instance = 1 and max_use_count = 1
+        (docker-autoscaler's default max_use_count is 10). To reuse VMs for GitLab and serve GitHub too, use two
+        pools.
+      github_runner_version = actions/runner release GitHub jobs run: the image's (packer's runner_version), else it
+        is downloaded for each job.
+      watchdog = true (default) runs `fleetci watchdog` beside gitlab-runner, which never starts a dead fleeting
+        plugin again: if fleetci's plugin dies, the watchdog restarts gitlab-runner after 30 s, which also ends the
+        jobs of the Manager's other runners.
+      The pool's runner takes as many jobs at once as all its classes hold (max_instances × capacity_per_instance);
+      concurrent (runner_manager.maximum_concurrent_jobs) grows by the extra classes' share.
 
     Adding, changing or removing a pool changes the Manager's user data, which replaces the Manager once. The global
     concurrent setting (runner_manager.maximum_concurrent_jobs) is shared by every runner.
@@ -782,6 +825,44 @@ variable "runner_pools" {
       config_file      = optional(string)
       credentials_file = optional(string)
     }), {})
+
+    fleetci = optional(object({
+      class           = string
+      acquire_timeout = optional(string)
+      classes = optional(map(object({
+        architecture             = optional(string, "amd64")
+        instance_types           = list(string)
+        max_instances            = optional(number, 4)
+        capacity_per_instance    = optional(number, 1)
+        max_use_count            = optional(number, 1)
+        ami_id                   = string
+        user_data                = optional(string)
+        username                 = optional(string, "ubuntu")
+        volume_size              = optional(number, 30)
+        acquire_timeout          = optional(string)
+        subnet_ids               = optional(list(string))
+        private_address_only     = optional(bool, true)
+        spot_allocation_strategy = optional(string, "price-capacity-optimized")
+        policy = optional(list(object({
+          periods            = optional(list(string))
+          timezone           = optional(string)
+          idle_count         = optional(number)
+          idle_time          = optional(string)
+          scale_factor       = optional(number)
+          scale_factor_limit = optional(number)
+        })), [])
+      })), {})
+      github = optional(object({
+        repos = list(string)
+        token = object({
+          name   = string
+          arn    = string
+          region = string
+        })
+      }))
+      github_runner_version = optional(string, "2.338.2")
+      watchdog              = optional(bool, true)
+    }))
   }))
 
   default = {}
@@ -843,134 +924,51 @@ variable "runner_pools" {
     condition     = alltrue([for pool in values(var.runner_pools) : (pool.builds_dir == null) == (pool.cache_dir == null)])
     error_message = "Set builds_dir and cache_dir together: the runner skips the cache when one is absolute and the other relative."
   }
-}
-
-variable "fleetci" {
-  description = <<-EOT
-    Opt-in per-job VM classes with fleetci (https://github.com/nesty92/fleetci). A job names the size it needs and
-    gets a fresh VM of that size, used once: on GitLab with `extends: .fleetci-<class>` (see the fleetci output's
-    ci_include), on GitHub Actions with `runs-on: fleetci-<class>`. Left null (the default), nothing changes.
-
-    The Manager installs fleetci at boot, writes /etc/fleetci/fleetci.toml from classes, adds a runner-fleetci
-    [[runners]] entry (with runner_cache, job_variables and feature_flags, like the other runners) and logs
-    `fleetci check`. Changing anything here replaces the Manager, as a runner pool change does.
-
-    version = fleetci release to install.
-    token = The SSM parameter holding the runner authentication token of a runner registered with the tag `tag`
-      (and "Run untagged jobs" off).
-    tag = That runner's tag, which the fleetci output's ci_include sets (default fleetci).
-    on_invalid_token = skip (default): a missing or invalid token leaves fleetci out of config.toml; fail: the
-      Manager's boot exits.
-    default_class = The class a job gets when it names none.
-    classes = One Auto Scaling group each (gitlab-runner-fleetci-<class>-asg), on spot, in private subnets:
-      architecture = amd64 (default) or arm64.
-      instance_types = The types the group may launch; more than one makes it a mixed instances policy. Prefer
-        non-burstable types (c7a, c7i, m7i, m7g): a T type (t3, t3a, t4g) bills surplus CPU credits for
-        a CPU-bound job, and in standard mode starts with no credits, throttled to its baseline.
-      max_instances = The most VMs at once (default 4); a ceiling, nothing runs until a job needs it.
-      ami_id = The class's image, built with packer/fleetci/fleetci.pkr.hcl (Ubuntu 24.04 with Docker and actions/runner),
-        one per architecture. Its own build needs Docker, the connector's user in the docker group, EC2 Instance
-        Connect and, for GitHub jobs, libicu and actions/runner in ~/actions-runner-<github_runner_version>.
-      user_data = Run on each VM's boot, for what the image lacks; none by default.
-      username = The SSH user fleetci logs in as (default ubuntu).
-      volume_size = Root volume GiB (default 30).
-      acquire_timeout = How long a job waits for a VM (default 10m).
-      policy = Warm VMs by time of day, as runner_autoscaler_policy_amd64. Empty (default): every VM boots for its job.
-      subnet_ids = Defaults to aws_subnet_ids.
-      private_address_only = false gives each VM a public IPv4 ($0.005/h), for public subnets without a NAT
-        gateway, whose data charge every image pull of a fresh VM pays. The Manager still connects privately.
-      spot_allocation_strategy = As runner_instance_amd64's.
-    docker = [runners.docker] options for fleetci's runner; default image ubuntu:24.04.
-    github = GitHub Actions jobs on the same classes: repos as owner/name, and the SSM parameter holding a
-      fine-grained token with Actions: Read and Administration: Read and write on them.
-    github_runner_version = actions/runner release GitHub jobs run: the one packer/fleetci/fleetci.pkr.hcl unpacked
-      (its runner_version), else it is downloaded for each job.
-    watchdog = true (default) runs `fleetci watchdog` beside gitlab-runner, which never starts a dead fleeting
-      plugin again: if fleetci's plugin dies, every class on GitLab and GitHub stops until gitlab-runner restarts.
-      The watchdog restarts gitlab-runner once the plugin has been gone for 30 s, which also ends the jobs of the
-      Manager's other runner pools. Needs fleetci 0.3.0 or later; with an older version the Manager logs that
-      and runs without it.
-
-    concurrent (runner_manager.maximum_concurrent_jobs) is raised by the sum of the classes' max_instances.
-  EOT
-
-  type = object({
-    version = optional(string, "0.3.0")
-    token = object({
-      name   = string
-      arn    = string
-      region = string
-    })
-    on_invalid_token = optional(string, "skip")
-    tag              = optional(string, "fleetci")
-    default_class    = string
-    classes = map(object({
-      architecture             = optional(string, "amd64")
-      instance_types           = list(string)
-      max_instances            = optional(number, 4)
-      ami_id                   = string
-      user_data                = optional(string)
-      username                 = optional(string, "ubuntu")
-      volume_size              = optional(number, 30)
-      acquire_timeout          = optional(string)
-      subnet_ids               = optional(list(string))
-      private_address_only     = optional(bool, true)
-      spot_allocation_strategy = optional(string, "price-capacity-optimized")
-      policy = optional(list(object({
-        periods            = optional(list(string))
-        timezone           = optional(string)
-        idle_count         = optional(number)
-        idle_time          = optional(string)
-        scale_factor       = optional(number)
-        scale_factor_limit = optional(number)
-      })), [])
-    }))
-    docker = optional(any, { image = "ubuntu:24.04" })
-    github = optional(object({
-      repos = list(string)
-      token = object({
-        name   = string
-        arn    = string
-        region = string
-      })
-    }))
-    github_runner_version = optional(string, "2.338.2")
-    watchdog              = optional(bool, true)
-  })
-  default = null
 
   validation {
-    condition     = var.fleetci == null ? true : length(var.fleetci.classes) > 0 && contains(keys(var.fleetci.classes), var.fleetci.default_class)
-    error_message = "fleetci needs at least one class, and default_class must be one of them."
+    condition     = length(flatten([for p in values(var.runner_pools) : try(p.fleetci.github.repos, [])])) == length(distinct(flatten([for p in values(var.runner_pools) : try(p.fleetci.github.repos, [])])))
+    error_message = "A GitHub repo can be served by one fleetci pool only: two would each start a runner for the same queued job."
   }
 
   validation {
-    condition     = var.fleetci == null ? true : alltrue([for k in keys(var.fleetci.classes) : can(regex("^[a-z0-9][a-z0-9-]{0,29}$", k))])
-    error_message = "fleetci class names must match ^[a-z0-9][a-z0-9-]{0,29}$, such as 2vcpu-4gb."
+    condition     = alltrue([for p in values(var.runner_pools) : p.fleetci == null || p.executor == "docker-autoscaler"])
+    error_message = "fleetci needs a docker-autoscaler pool: it gives jobs their VM through docker-autoscaler's vm_isolation."
   }
 
   validation {
-    condition     = var.fleetci == null ? true : alltrue([for c in values(var.fleetci.classes) : contains(["amd64", "arm64"], c.architecture) && length(c.instance_types) > 0 && c.max_instances >= 1])
-    error_message = "Each fleetci class needs architecture amd64 or arm64, at least one instance type and max_instances of at least 1."
+    condition = alltrue([for p in values(var.runner_pools) : p.fleetci == null ? true : alltrue([
+      for name in concat([p.fleetci.class], keys(p.fleetci.classes)) : can(regex("^[a-z0-9][a-z0-9-]{0,29}$", name))
+    ]) && !contains(keys(p.fleetci.classes), p.fleetci.class)])
+    error_message = "fleetci class names must match ^[a-z0-9][a-z0-9-]{0,29}$, such as 2vcpu-4gb, and the pool's own class can't also be one of classes."
   }
 
   validation {
-    condition     = var.fleetci == null ? true : alltrue([for c in values(var.fleetci.classes) : contains(["price-capacity-optimized", "capacity-optimized", "capacity-optimized-prioritized", "lowest-price"], c.spot_allocation_strategy)])
+    condition = alltrue([for p in values(var.runner_pools) : p.fleetci == null ? true : alltrue([
+      for c in values(p.fleetci.classes) : contains(["amd64", "arm64"], c.architecture) && length(c.instance_types) > 0 && c.max_instances >= 1 && c.capacity_per_instance >= 1 && c.max_use_count >= 1
+    ])])
+    error_message = "Each fleetci class needs architecture amd64 or arm64, at least one instance type, and max_instances, capacity_per_instance and max_use_count of at least 1."
+  }
+
+  validation {
+    condition = alltrue([for p in values(var.runner_pools) : p.fleetci == null ? true : alltrue([
+      for c in values(p.fleetci.classes) : contains(["price-capacity-optimized", "capacity-optimized", "capacity-optimized-prioritized", "lowest-price"], c.spot_allocation_strategy)
+    ])])
     error_message = "spot_allocation_strategy must be price-capacity-optimized, capacity-optimized, capacity-optimized-prioritized or lowest-price."
   }
 
+  # The pool's own class reuses VMs with docker-autoscaler's defaults
+  # (max_use_count 10), so serving GitHub needs both set to 1.
   validation {
-    condition     = var.fleetci == null ? true : contains(["skip", "fail"], var.fleetci.on_invalid_token)
-    error_message = "fleetci.on_invalid_token must be skip or fail."
+    condition = alltrue([for p in values(var.runner_pools) : try(p.fleetci.github, null) == null ? true : (
+      coalesce(p.autoscaler.capacity_per_instance, 1) == 1 && coalesce(p.autoscaler.max_use_count, 10) == 1 &&
+      alltrue([for c in values(p.fleetci.classes) : c.capacity_per_instance == 1 && c.max_use_count == 1])
+    )])
+    error_message = "fleetci with github needs one job per VM on every class: GitHub steps run on the VM itself, so a job could read or change another job's VM. Set the pool's autoscaler capacity_per_instance = 1 and max_use_count = 1 (docker-autoscaler's default max_use_count is 10), and the same on its classes. To reuse VMs for GitLab and serve GitHub too, use two pools."
   }
+}
 
-  validation {
-    condition     = var.fleetci == null ? true : alltrue([for k in keys(var.fleetci.classes) : !contains(keys(var.runner_pools), "fleetci-${k}")])
-    error_message = "A runner_pools key equals fleetci-<class> for a fleetci class; both would name the same Auto Scaling group."
-  }
-
-  validation {
-    condition     = var.fleetci == null ? true : (var.fleetci.github == null ? true : alltrue([for r in var.fleetci.github.repos : can(regex("^[^/]+/[^/]+$", r))]))
-    error_message = "fleetci.github.repos must be owner/name."
-  }
+variable "fleetci_version" {
+  description = "fleetci release the Manager installs when a runner pool has fleetci (https://github.com/nesty92/fleetci/releases)."
+  type        = string
+  default     = "0.4.0"
 }

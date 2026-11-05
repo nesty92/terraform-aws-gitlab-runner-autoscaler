@@ -261,7 +261,9 @@ locals {
   pool_runner_configs = {
     for key in local.pool_keys : key => templatefile("${path.module}/templates/runners.tftpl", merge(
       local.runner_manager_template_vars,
-      { runners_autoscaling = [local.pool_runner_entries[key]] },
+      # A pool with fleetci keeps its entry but the [runners.autoscaler] part,
+      # which fleetci_runner_override replaces.
+      { runners_autoscaling = [merge(local.pool_runner_entries[key], try(local.fleetci_runner_override[key], {}))] },
     ))
   }
 
@@ -286,7 +288,7 @@ locals {
 
   template_runner_config = templatefile("${path.module}/templates/runner_manager.tftpl", {
     gitlab_check_interval     = var.runner_manager.gitlab_check_interval
-    maximum_concurrent_jobs   = var.runner_manager.maximum_concurrent_jobs + local.fleetci_max_instances
+    maximum_concurrent_jobs   = var.runner_manager.maximum_concurrent_jobs + local.fleetci_extra_slots
     prometheus_listen_address = var.runner_manager.prometheus_listen_address
     sentry_dsn                = var.runner_manager.sentry_dsn
 

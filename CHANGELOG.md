@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.9.2](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.9.1...3.9.2) (2026-11-06)
+
+
+### Bug Fixes
+
+* **packer:** fleetci VMs put Docker and the job cache on local NVMe ([#57](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/issues/57)) ([cf63ba9](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/cf63ba9a0f10d75aa980bc8e25805b9285c55dd1))
+
 ## [3.9.1](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.9.0...3.9.1) (2026-11-06)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.9.3](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.9.2...3.9.3) (2026-11-06)
+
+
+### Bug Fixes
+
+* **packer:** the local disk unit no longer breaks the VM's boot order ([#59](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/issues/59)) ([bd2282d](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/bd2282dcdedf27c0d7a2e1e9f2bc31ae50e40ced))
+
 ## [3.9.2](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.9.1...3.9.2) (2026-11-06)
 
 

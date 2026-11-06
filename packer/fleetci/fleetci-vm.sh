@@ -56,8 +56,14 @@ chmod 755 /usr/local/sbin/fleetci-local-disk
 cat > /etc/systemd/system/fleetci-local-disk.service <<'UNIT'
 [Unit]
 Description=Docker and the job cache on the local NVMe disk, when there is one
+# No default dependencies: those order a service after basic.target, which
+# waits for sockets.target and so for docker.socket. Ordering this unit before
+# docker.socket on top of them is a cycle, and systemd breaks it by skipping
+# sockets.target, which leaves the VM's socket-activated services late.
+# docker.socket needs nothing on the disk; docker.service waits for this unit.
+DefaultDependencies=no
 After=local-fs.target
-Before=containerd.service docker.service docker.socket
+Before=containerd.service docker.service
 
 [Service]
 Type=oneshot

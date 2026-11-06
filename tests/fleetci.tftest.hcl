@@ -451,6 +451,11 @@ run "fleetci_on_the_main_runner" {
   }
 
   assert {
+    condition     = strcontains(aws_instance.runner_manager.user_data, "cat > /etc/gitlab-runner/config.toml <<- 'EOF'")
+    error_message = "config.toml goes through a quoted heredoc, so the shell keeps the job's class in the vm_isolation image."
+  }
+
+  assert {
     condition     = contains(jsondecode(aws_iam_role_policy.ssm_read_runner_tokens.policy).Statement[0].Resource, "arn:aws:ssm:us-west-2:111122223333:parameter/fleetci-github-token")
     error_message = "The Manager may read runner-amd64's GitHub token."
   }

@@ -34,9 +34,12 @@ fi
 # Stop the gitlab-runner service until it is configured
 systemctl stop gitlab-runner
 
-# Configure the gitlab-runner
+# Configure the gitlab-runner. The heredoc is quoted so the shell writes the
+# config as rendered: a value may name a variable the runner expands for each
+# job, such as a vm_isolation image, which an unquoted heredoc would expand to
+# nothing here. The tokens go in through sed below, not through the shell.
 mkdir -p /etc/gitlab-runner
-cat > /etc/gitlab-runner/config.toml <<- EOF
+cat > /etc/gitlab-runner/config.toml <<- 'EOF'
 
 ${runners_config}
 

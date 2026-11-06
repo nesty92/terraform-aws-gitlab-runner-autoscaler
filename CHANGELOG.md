@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.9.1](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.9.0...3.9.1) (2026-11-06)
+
+
+### Bug Fixes
+
+* the main runners keep the job's fleetci class in config.toml ([#55](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/issues/55)) ([817e959](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/817e959b958236cb00b2e58064665d76551641fa))
+
 ## [3.9.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.8.0...3.9.0) (2026-11-05)
 
 

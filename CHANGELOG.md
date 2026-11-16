@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.10.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.9.3...3.10.0) (2026-11-16)
+
+
+### Features
+
+* fleetci 0.8.0 with job sizing, metrics and Spot reclaim settings ([#62](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/issues/62)) ([b706889](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/b7068890e3f9fc0e010fad103c876ef1d8312036))
+
 ## [3.9.3](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.9.2...3.9.3) (2026-11-06)
 
 

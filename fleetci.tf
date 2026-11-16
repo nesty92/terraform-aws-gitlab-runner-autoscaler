@@ -42,6 +42,30 @@ locals {
     },
   )
 
+  # A runner that names no class of its own is named after its instance
+  # type's size, <vCPUs>vcpu-<GiB>gb: c7i.xlarge is 4vcpu-8gb. Its type is the
+  # group's first one (`type`); overrides don't change the name.
+  fleetci_unnamed = {
+    for key, r in local.fleetci_runners : key => merge(local.runner_instances, local.custom_pool_instances)[key].type
+    if r.fleetci.class == null
+  }
+  fleetci_class = {
+    for key, r in local.fleetci_runners : key => r.fleetci.class != null ? r.fleetci.class : (
+      data.aws_ec2_instance_type.fleetci_unnamed[key].memory_size % 1024 == 0
+      ? format("%dvcpu-%dgb", data.aws_ec2_instance_type.fleetci_unnamed[key].default_vcpus, data.aws_ec2_instance_type.fleetci_unnamed[key].memory_size / 1024)
+      : format("%dvcpu-%dmb", data.aws_ec2_instance_type.fleetci_unnamed[key].default_vcpus, data.aws_ec2_instance_type.fleetci_unnamed[key].memory_size)
+    )
+  }
+
+  # Where each fleetci runner serves its metrics: its own metrics_listen, or,
+  # when the Manager ships metrics, a port of its own on 127.0.0.1.
+  fleetci_metrics_listen = {
+    for i, key in sort(keys(local.fleetci_runners)) : key => (
+      local.fleetci_runners[key].fleetci.metrics_listen != null ? local.fleetci_runners[key].fleetci.metrics_listen :
+      var.runner_manager.metrics != null ? format("127.0.0.1:%d", 9483 + i) : null
+    )
+  }
+
   # The extra classes of every fleetci runner, keyed <runner>-<class>.
   fleetci_classes = merge([
     for key, r in local.fleetci_runners : {
@@ -87,7 +111,7 @@ locals {
   fleetci_runner_classes = {
     for key, r in local.fleetci_runners : key => merge(
       {
-        (r.fleetci.class) = {
+        (local.fleetci_class[key]) = {
           asg_name              = format("gitlab-runner-%s-asg", key)
           max_instances         = r.autoscaler.max_instances
           capacity_per_instance = r.autoscaler.capacity_per_instance
@@ -160,17 +184,21 @@ locals {
       for key, r in local.fleetci_runners : {
         key = key
         toml = templatefile("${path.module}/templates/fleetci.toml.tftpl", {
-          default_class         = r.fleetci.class
+          default_class         = local.fleetci_class[key]
           region                = data.aws_region.current.name
           classes               = local.fleetci_runner_classes[key]
           github                = r.fleetci.github
           github_token_file     = format("/etc/fleetci/%s-github.token", key)
           github_runner_version = r.fleetci.github_runner_version
+          metrics_listen        = local.fleetci_metrics_listen[key]
+          usage_file            = format("/var/lib/fleetci/%s/usage.jsonl", key)
+          reclaim               = r.fleetci.reclaim
         })
         github_token = try(r.fleetci.github.token, null)
         watchdog     = r.fleetci.watchdog
       }
     ]
+    usage_history = var.fleetci_usage_history
   }
 
   # What the Manager's preconditions refuse, as the runners at fault.
@@ -179,7 +207,7 @@ locals {
     executor = [for key, r in local.fleetci_runners : format("runner-%s", key) if r.executor != "docker-autoscaler"]
     names = [
       for key, r in local.fleetci_runners : format("runner-%s", key)
-      if !alltrue([for name in concat([r.fleetci.class], keys(r.fleetci.classes)) : can(regex("^[a-z0-9][a-z0-9-]{0,29}$", name))]) || contains(keys(r.fleetci.classes), r.fleetci.class)
+      if !alltrue([for name in concat([local.fleetci_class[key]], keys(r.fleetci.classes)) : can(regex("^[a-z0-9][a-z0-9-]{0,29}$", name))]) || contains(keys(r.fleetci.classes), local.fleetci_class[key])
     ]
     classes = [
       for key, r in local.fleetci_runners : format("runner-%s", key)
@@ -198,4 +226,10 @@ locals {
   fleetci_repos = flatten([for r in values(local.fleetci_runners) : try(r.fleetci.github.repos, [])])
 
   fleetci_token_arns = compact([for r in values(local.fleetci_runners) : try(r.fleetci.github.token.arn, "")])
+}
+
+data "aws_ec2_instance_type" "fleetci_unnamed" {
+  for_each = local.fleetci_unnamed
+
+  instance_type = each.value
 }

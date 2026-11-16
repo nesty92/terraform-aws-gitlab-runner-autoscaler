@@ -87,6 +87,18 @@ variable "runner_manager" {
     request_concurrency = Limit of concurrent requests for new jobs from GitLab, set on every [[runners]] entry (request_concurrency). Omitted from config.toml when null.
     feature_flags = Extra Runner feature flags set on every [[runners]] entry, merged over the module's FF_USE_FLEETING_ACQUIRE_HEARTBEATS = true. See https://docs.gitlab.com/runner/configuration/feature-flags/
     enable_ssm_agent = Enable and start amazon-ssm-agent on the Runner Manager from its user data.
+    metrics = Ship the Manager's metrics to a Prometheus remote-write endpoint, through a Prometheus in agent mode on
+      the Manager: gitlab-runner's own (on prometheus_listen_address, or 127.0.0.1:9252 when that is empty) and each
+      fleetci runner's (fleetci.metrics_listen, or a port on 127.0.0.1 from 9483 up).
+      remote_write.url = The endpoint, e.g. an Amazon Managed Service for Prometheus workspace's
+        <prometheus_endpoint>api/v1/remote_write.
+      remote_write.sigv4_region = Sign the writes with the Manager's role (SigV4), as Amazon Managed Service for
+        Prometheus needs.
+      remote_write.workspace_arn = An Amazon Managed Service for Prometheus workspace the Manager's role may write to
+        (aps:RemoteWrite).
+      scrape_interval = How often each target is scraped (default 30s).
+      external_labels = Labels added to every series, e.g. { environment = "ci" }.
+      prometheus_version = The Prometheus release installed (https://github.com/prometheus/prometheus/releases).
   EOT
   type = object({
     gitlab_check_interval     = optional(number, 3)
@@ -96,8 +108,34 @@ variable "runner_manager" {
     request_concurrency       = optional(number)
     feature_flags             = optional(map(bool), {})
     enable_ssm_agent          = optional(bool, false)
+    metrics = optional(object({
+      remote_write = object({
+        url           = string
+        sigv4_region  = optional(string)
+        workspace_arn = optional(string)
+      })
+      scrape_interval    = optional(string, "30s")
+      external_labels    = optional(map(string), {})
+      prometheus_version = optional(string, "3.15.1")
+    }))
   })
   default = {}
+}
+
+variable "fleetci_usage_history" {
+  description = <<-EOT
+    Keep fleetci's record of each job's usage (how it fit its class, run by run) across Manager replacements, in S3.
+    Every fleetci runner keeps its runs in /var/lib/fleetci/<key>/usage.jsonl, which `fleetci usage` reads; the
+    Manager is replaced by any change to its config, which would start that record again. With this set, the Manager
+    restores <prefix><key>.jsonl at boot and copies it back every 15 minutes and when it stops.
+    bucket = The S3 bucket's name. The Manager's role may read and write <prefix>* in it.
+    prefix = Key prefix (default fleetci/usage/).
+  EOT
+  type = object({
+    bucket = string
+    prefix = optional(string, "fleetci/usage/")
+  })
+  default = null
 }
 
 variable "ecr_job_images" {
@@ -708,7 +746,8 @@ variable "runner_pools" {
       public template, or the fleetci output's ci_include) and need the tag `fleetci` on this pool's runner; GitHub
       Actions jobs with `runs-on: fleetci-<class>`. Each fleetci pool runs a fleetci of its own, from
       /etc/fleetci/<key>.toml; fleetci_version says which release.
-      class = The name of the pool's own class, such as 2vcpu-4gb. The pool's ami_id must then be a fleetci image
+      class = The name of the pool's own class, such as 2vcpu-4gb. Unset, it is named after the size of the pool's
+        instance type, <vCPUs>vcpu-<GiB>gb (c7i.xlarge: 4vcpu-8gb). The pool's ami_id must then be a fleetci image
         (see classes.ami_id); fleetci logs in as ubuntu unless connector.username says otherwise.
       acquire_timeout = How long a job waits for a VM of the pool's class (fleetci's default: 10m).
       classes = More classes, each an Auto Scaling group of its own (gitlab-runner-<key>-<class>-asg), on spot:
@@ -741,6 +780,13 @@ variable "runner_pools" {
       watchdog = true (default) runs `fleetci watchdog` beside gitlab-runner, which never starts a dead fleeting
         plugin again: if fleetci's plugin dies, the watchdog restarts gitlab-runner after 30 s, which also ends the
         jobs of the Manager's other runners.
+      metrics_listen = Where fleetci serves its Prometheus metrics (/metrics, plain HTTP): how each job fit its class,
+        by class (see fleetci's docs/job-usage.md). Unset, nothing is served, unless runner_manager.metrics is set,
+        which gives each fleetci runner a port on 127.0.0.1 from 9483 up and scrapes it.
+      reclaim = What fleetci does with a spot VM AWS is taking back. watch (default true) gives no new job to a VM
+        with an interruption notice; rebalance (default false) does the same on the earlier rebalance recommendation,
+        which is often not followed by an interruption. Running jobs always go on. Applies to all of the runner's
+        classes.
       The pool's runner takes as many jobs at once as all its classes hold (max_instances × capacity_per_instance);
       concurrent (runner_manager.maximum_concurrent_jobs) grows by the extra classes' share.
 
@@ -828,7 +874,7 @@ variable "runner_pools" {
     }), {})
 
     fleetci = optional(object({
-      class           = string
+      class           = optional(string)
       acquire_timeout = optional(string)
       classes = optional(map(object({
         architecture             = optional(string, "amd64")
@@ -863,6 +909,11 @@ variable "runner_pools" {
       }))
       github_runner_version = optional(string, "2.338.2")
       watchdog              = optional(bool, true)
+      metrics_listen        = optional(string)
+      reclaim = optional(object({
+        watch     = optional(bool, true)
+        rebalance = optional(bool, false)
+      }), {})
     }))
   }))
 
@@ -938,7 +989,7 @@ variable "runner_fleetci_amd64" {
     and max_use_count = 1: its default max_use_count is 10, which reuses VMs.
   EOT
   type = object({
-    class           = string
+    class           = optional(string)
     acquire_timeout = optional(string)
     classes = optional(map(object({
       architecture             = optional(string, "amd64")
@@ -973,6 +1024,11 @@ variable "runner_fleetci_amd64" {
     }))
     github_runner_version = optional(string, "2.338.2")
     watchdog              = optional(bool, true)
+    metrics_listen        = optional(string)
+    reclaim = optional(object({
+      watch     = optional(bool, true)
+      rebalance = optional(bool, false)
+    }), {})
   })
   default = null
 
@@ -993,7 +1049,7 @@ variable "runner_fleetci_arm64" {
     and max_use_count = 1: its default max_use_count is 10, which reuses VMs.
   EOT
   type = object({
-    class           = string
+    class           = optional(string)
     acquire_timeout = optional(string)
     classes = optional(map(object({
       architecture             = optional(string, "amd64")
@@ -1028,6 +1084,11 @@ variable "runner_fleetci_arm64" {
     }))
     github_runner_version = optional(string, "2.338.2")
     watchdog              = optional(bool, true)
+    metrics_listen        = optional(string)
+    reclaim = optional(object({
+      watch     = optional(bool, true)
+      rebalance = optional(bool, false)
+    }), {})
   })
   default = null
 
@@ -1040,5 +1101,5 @@ variable "runner_fleetci_arm64" {
 variable "fleetci_version" {
   description = "fleetci release the Manager installs when a runner has fleetci (https://github.com/nesty92/fleetci/releases)."
   type        = string
-  default     = "0.4.0"
+  default     = "0.8.0"
 }

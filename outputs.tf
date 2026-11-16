@@ -42,17 +42,17 @@ output "fleetci" {
   value = length(local.fleetci_runners) == 0 ? null : {
     for key, r in local.fleetci_runners : key => {
       runner_name   = format("runner-%s", key)
-      default_class = r.fleetci.class
+      default_class = local.fleetci_class[key]
       classes = {
         for name in keys(local.fleetci_runner_classes[key]) : name => {
-          asg_name           = aws_autoscaling_group.gitlab_runner_instance[name == r.fleetci.class ? key : format("%s-%s", key, name)].name
-          asg_arn            = aws_autoscaling_group.gitlab_runner_instance[name == r.fleetci.class ? key : format("%s-%s", key, name)].arn
-          launch_template_id = aws_launch_template.gitlab_runner_instance[name == r.fleetci.class ? key : format("%s-%s", key, name)].id
+          asg_name           = aws_autoscaling_group.gitlab_runner_instance[name == local.fleetci_class[key] ? key : format("%s-%s", key, name)].name
+          asg_arn            = aws_autoscaling_group.gitlab_runner_instance[name == local.fleetci_class[key] ? key : format("%s-%s", key, name)].arn
+          launch_template_id = aws_launch_template.gitlab_runner_instance[name == local.fleetci_class[key] ? key : format("%s-%s", key, name)].id
           github_label       = format("fleetci-%s", name)
         }
       }
       ci_include = join("\n", [
-        format("# fleetci classes of runner %s (tag fleetci). Default class: %s.", format("runner-%s", key), r.fleetci.class),
+        format("# fleetci classes of runner %s (tag fleetci). Default class: %s.", format("runner-%s", key), local.fleetci_class[key]),
         "#   extends: .fleetci           # the default class",
         "#   extends: .fleetci-<class>   # one of the classes below",
         yamlencode(merge(

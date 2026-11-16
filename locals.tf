@@ -294,7 +294,7 @@ locals {
   template_runner_config = templatefile("${path.module}/templates/runner_manager.tftpl", {
     gitlab_check_interval     = var.runner_manager.gitlab_check_interval
     maximum_concurrent_jobs   = var.runner_manager.maximum_concurrent_jobs + local.fleetci_extra_slots
-    prometheus_listen_address = var.runner_manager.prometheus_listen_address
+    prometheus_listen_address = local.gitlab_runner_listen
     sentry_dsn                = var.runner_manager.sentry_dsn
 
     runners = templatefile("${path.module}/templates/runners.tftpl", merge(

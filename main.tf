@@ -300,6 +300,7 @@ resource "aws_instance" "runner_manager" {
     ]
 
     fleetci                     = local.fleetci_manager
+    prometheus_agent            = local.prometheus_agent
     fleeting_plugin_aws_version = var.fleeting_plugin_aws_version
     gitlab_runner_version       = var.gitlab_runner_version
     enable_ssm_agent            = var.runner_manager.enable_ssm_agent

@@ -1,5 +1,9 @@
 # Written by terraform-aws-gitlab-runner-autoscaler from its runner pool's fleetci input.
 default_class = ${jsonencode(default_class)}
+usage_file = ${jsonencode(usage_file)}
+%{~ if metrics_listen != null }
+metrics_listen = ${jsonencode(metrics_listen)}
+%{~ endif }
 %{~ for name, class in classes }
 
 [classes.${name}]
@@ -16,6 +20,12 @@ acquire_timeout = ${jsonencode(class.acquire_timeout)}
 %{~ endif }
 plugin_config = { ${join(", ", [for k, v in merge(class.plugin, { name = class.asg_name, region = region }) : "${k} = ${jsonencode(v)}"])} }
 connector_config = { ${join(", ", [for k, v in class.connector : "${k} = ${jsonencode(v)}"])} }
+%{~ if !reclaim.watch || reclaim.rebalance }
+
+[classes.${name}.reclaim]
+watch = ${reclaim.watch}
+rebalance = ${reclaim.rebalance}
+%{~ endif }
 %{~ for policy in class.policy }
 
 [[classes.${name}.policy]]

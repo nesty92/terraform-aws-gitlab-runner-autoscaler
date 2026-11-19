@@ -1,5 +1,16 @@
 # Changelog
 
+## [4.0.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.10.0...4.0.0) (2026-11-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* the fleetci_usage_history variable is gone, with its S3 restore at boot, the fleetci-usage-sync timer and service, and the Manager's S3 policy for it. Remove the variable from your configuration; back up /var/lib/fleetci/<runner>/usage.jsonl yourself to keep it.
+
+### Features
+
+* drop fleetci_usage_history ([#66](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/issues/66)) ([f7020ed](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/f7020ed11251b39832dcc8af117ff34de05ea2f5))
+
 ## [3.10.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.9.3...3.10.0) (2026-11-16)
 
 

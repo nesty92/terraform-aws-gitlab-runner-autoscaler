@@ -198,7 +198,6 @@ locals {
         watchdog     = r.fleetci.watchdog
       }
     ]
-    usage_history = var.fleetci_usage_history
   }
 
   # What the Manager's preconditions refuse, as the runners at fault.

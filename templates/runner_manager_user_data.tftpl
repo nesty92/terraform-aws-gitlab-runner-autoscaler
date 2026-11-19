@@ -131,11 +131,6 @@ EOF
 # fleetci of runner-${runner.key}: its plugin by a name of its own
 ln -sf /usr/bin/fleeting-plugin-fleetci /usr/bin/fleeting-plugin-fleetci-${runner.key}
 install -d -m 700 /var/lib/fleetci/${runner.key}
-%{ if fleetci.usage_history != null ~}
-# The jobs' usage so far, kept in S3 across Managers; none yet the first time
-aws s3 cp "s3://${fleetci.usage_history.bucket}/${fleetci.usage_history.prefix}${runner.key}.jsonl" /var/lib/fleetci/${runner.key}/usage.jsonl --region ${aws_region} --only-show-errors \
-    || echo "fleetci: no usage history for runner-${runner.key} yet"
-%{ endif ~}
 cat > /etc/fleetci/${runner.key}.toml <<- 'EOF'
 ${runner.toml}
 EOF
@@ -152,63 +147,6 @@ fi
 # Every class, the GitHub access and config.toml; the result is in this log
 AWS_DEFAULT_REGION=${aws_region} fleetci check -config /etc/fleetci/${runner.key}.toml -runner-config /etc/gitlab-runner/config.toml || echo "fleetci check found problems for runner-${runner.key}; see above"
 %{ endfor ~}
-%{ if fleetci.usage_history != null ~}
-
-# Copy each runner's usage back to S3 every 15 minutes and when the Manager
-# stops. Only whole lines: fleetci may be writing one as it is copied.
-cat > /usr/local/bin/fleetci-usage-sync <<- 'EOF'
-#!/bin/bash
-for f in /var/lib/fleetci/*/usage.jsonl
-do
-    [[ -s "$f" ]] || continue
-    key=$(basename "$(dirname "$f")")
-    tmp=$(mktemp)
-    cat "$f" > "$tmp"
-    [[ -n "$(tail -c1 "$tmp")" ]] && sed -i '$d' "$tmp"
-    aws s3 cp "$tmp" "s3://${fleetci.usage_history.bucket}/${fleetci.usage_history.prefix}$key.jsonl" --region ${aws_region} --only-show-errors
-    rm -f "$tmp"
-done
-EOF
-chmod 755 /usr/local/bin/fleetci-usage-sync
-
-cat > /etc/systemd/system/fleetci-usage-sync.service <<- 'EOF'
-[Unit]
-Description=Copy fleetci's job usage to S3
-Wants=network-online.target
-After=network-online.target
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=/bin/true
-ExecStop=/usr/local/bin/fleetci-usage-sync
-ExecReload=/usr/local/bin/fleetci-usage-sync
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-cat > /etc/systemd/system/fleetci-usage-sync-periodic.service <<- 'EOF'
-[Unit]
-Description=Copy fleetci's job usage to S3
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/fleetci-usage-sync
-EOF
-
-cat > /etc/systemd/system/fleetci-usage-sync-periodic.timer <<- 'EOF'
-[Unit]
-Description=Copy fleetci's job usage to S3 every 15 minutes
-
-[Timer]
-OnBootSec=15min
-OnUnitActiveSec=15min
-
-[Install]
-WantedBy=timers.target
-EOF
-%{ endif ~}
 %{ endif ~}
 %{ if prometheus_agent != null ~}
 
@@ -264,9 +202,6 @@ systemctl enable gitlab-runner
 systemctl enable --now fleetci-watchdog@${runner.key}
 %{ endif ~}
 %{ endfor ~}
-%{ if try(fleetci.usage_history, null) != null ~}
-systemctl enable --now fleetci-usage-sync.service fleetci-usage-sync-periodic.timer
-%{ endif ~}
 %{ if prometheus_agent != null ~}
 systemctl enable --now prometheus-agent
 %{ endif ~}

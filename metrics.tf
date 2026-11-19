@@ -81,31 +81,3 @@ resource "aws_iam_role_policy" "metrics_remote_write" {
   })
 }
 
-# Read and write fleetci's usage history (fleetci_usage_history).
-resource "aws_iam_role_policy" "fleetci_usage_history" {
-  count = var.fleetci_usage_history == null || length(local.fleetci_runners) == 0 ? 0 : 1
-
-  name = format("gitlab-runner-manager-fleetci-usage-%s", var.environment)
-  role = aws_iam_role.runner_manager.id
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Sid      = "KeepTheJobsUsage"
-        Effect   = "Allow"
-        Action   = ["s3:GetObject", "s3:PutObject"]
-        Resource = format("arn:aws:s3:::%s/%s*", var.fleetci_usage_history.bucket, var.fleetci_usage_history.prefix)
-      },
-      {
-        Sid      = "TellAMissingHistoryFromARefusedOne"
-        Effect   = "Allow"
-        Action   = "s3:ListBucket"
-        Resource = format("arn:aws:s3:::%s", var.fleetci_usage_history.bucket)
-        Condition = {
-          StringLike = { "s3:prefix" = [format("%s*", var.fleetci_usage_history.prefix)] }
-        }
-      },
-    ]
-  })
-}

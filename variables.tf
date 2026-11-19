@@ -122,22 +122,6 @@ variable "runner_manager" {
   default = {}
 }
 
-variable "fleetci_usage_history" {
-  description = <<-EOT
-    Keep fleetci's record of each job's usage (how it fit its class, run by run) across Manager replacements, in S3.
-    Every fleetci runner keeps its runs in /var/lib/fleetci/<key>/usage.jsonl, which `fleetci usage` reads; the
-    Manager is replaced by any change to its config, which would start that record again. With this set, the Manager
-    restores <prefix><key>.jsonl at boot and copies it back every 15 minutes and when it stops.
-    bucket = The S3 bucket's name. The Manager's role may read and write <prefix>* in it.
-    prefix = Key prefix (default fleetci/usage/).
-  EOT
-  type = object({
-    bucket = string
-    prefix = optional(string, "fleetci/usage/")
-  })
-  default = null
-}
-
 variable "ecr_job_images" {
   description = <<-EOT
     Lets jobs on the docker-autoscaler runners use images from this account's ECR with no login in CI. The Manager installs

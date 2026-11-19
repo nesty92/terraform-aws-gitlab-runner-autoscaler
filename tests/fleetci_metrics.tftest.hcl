@@ -139,8 +139,8 @@ run "without_metrics_fleetci_serves_none_and_nothing_ships" {
   }
 
   assert {
-    condition     = length(aws_iam_role_policy.metrics_remote_write) == 0 && length(aws_iam_role_policy.fleetci_usage_history) == 0
-    error_message = "No metrics and no usage history, no permissions for them."
+    condition     = length(aws_iam_role_policy.metrics_remote_write) == 0
+    error_message = "No metrics, no permissions for them."
   }
 
   assert {
@@ -243,28 +243,5 @@ run "reclaim_settings_reach_every_class" {
       strcontains(aws_instance.runner_manager.user_data, "[classes.${c}.reclaim]\nwatch = true\nrebalance = true")
     ])
     error_message = "reclaim is written for each of the runner's classes."
-  }
-}
-
-run "usage_history_is_kept_in_s3" {
-  command = apply
-
-  variables {
-    runner_fleetci_amd64  = { class = "4vcpu-8gb" }
-    fleetci_usage_history = { bucket = "ci-state" }
-  }
-
-  assert {
-    condition = alltrue([for s in [
-      "s3://ci-state/fleetci/usage/amd64.jsonl",
-      "fleetci-usage-sync-periodic.timer",
-      "ExecStop=/usr/local/bin/fleetci-usage-sync",
-    ] : strcontains(aws_instance.runner_manager.user_data, s)])
-    error_message = "The Manager restores each runner's usage at boot and copies it back."
-  }
-
-  assert {
-    condition     = jsondecode(aws_iam_role_policy.fleetci_usage_history[0].policy).Statement[0].Resource == "arn:aws:s3:::ci-state/fleetci/usage/*"
-    error_message = "The Manager may read and write the usage prefix only."
   }
 }

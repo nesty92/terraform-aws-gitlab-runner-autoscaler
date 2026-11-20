@@ -252,6 +252,14 @@ locals {
     request_concurrency = var.runner_manager.request_concurrency
     cache               = local.runner_cache
 
+    # GitLab Runner 19.1.3 and later run a credential helper named in
+    # DOCKER_AUTH_CONFIG only for the registries listed here, and treat a
+    # [[runners]] environment as the job's. The docker-autoscaler runners'
+    # ecr-login is allowed for this account's registry alone.
+    allowed_docker_credential_helpers = var.ecr_job_images == null ? {} : {
+      "ecr-login" = [local.ecr_registry]
+    }
+
     # The module's own flag first, so a consumer's entry for the same key wins.
     feature_flags = merge(
       { FF_USE_FLEETING_ACQUIRE_HEARTBEATS = true },

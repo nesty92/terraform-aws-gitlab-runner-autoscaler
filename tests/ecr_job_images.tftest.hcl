@@ -87,6 +87,16 @@ run "ecr_job_images_signs_pulls_with_the_managers_role" {
   }
 
   assert {
+    condition     = strcontains(aws_instance.runner_manager.user_data, "[runners.allowed_docker_credential_helpers]\n      \"ecr-login\" = [\"111122223333.dkr.ecr.us-west-2.amazonaws.com\"]")
+    error_message = "The runner allows the ecr-login helper its DOCKER_AUTH_CONFIG names, for this account's registry only."
+  }
+
+  assert {
+    condition     = length(regexall("allowed_docker_credential_helpers", aws_instance.runner_manager.user_data)) == 1
+    error_message = "Only the docker-autoscaler runner, which carries DOCKER_AUTH_CONFIG, gets the allowlist."
+  }
+
+  assert {
     condition     = length(regexall("DOCKER_AUTH_CONFIG", aws_instance.runner_manager.user_data)) == 1
     error_message = "An instance pool pulls no job images, so only the docker-autoscaler runner gets the setting."
   }

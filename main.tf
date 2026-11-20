@@ -268,7 +268,7 @@ resource "aws_iam_role_policy_attachment" "runner_manager_ssm_managed_instance_c
 
 
 resource "aws_instance" "runner_manager" {
-  ami                  = data.aws_ami.amazon_linux_2.id
+  ami                  = coalesce(var.runner_manager.ami_id, try(data.aws_ami.amazon_linux_2[0].id, null))
   instance_type        = var.runner_manager_instance_type
   iam_instance_profile = aws_iam_instance_profile.runner_manager.name
 

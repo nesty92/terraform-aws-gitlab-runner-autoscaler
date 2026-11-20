@@ -56,6 +56,13 @@
     %{~ endfor ~}
     %{~ endif ~}
 
+    %{~ if config.executor == "docker-autoscaler" && length(allowed_docker_credential_helpers) > 0 ~}
+    [runners.allowed_docker_credential_helpers]
+    %{~ for helper, registries in allowed_docker_credential_helpers ~}
+      ${jsonencode(helper)} = ${jsonencode(registries)}
+    %{~ endfor ~}
+    %{~ endif ~}
+
     [runners.autoscaler]
       plugin = "${config.plugin}"
 

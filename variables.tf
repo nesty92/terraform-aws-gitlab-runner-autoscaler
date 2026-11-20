@@ -87,6 +87,8 @@ variable "runner_manager" {
     request_concurrency = Limit of concurrent requests for new jobs from GitLab, set on every [[runners]] entry (request_concurrency). Omitted from config.toml when null.
     feature_flags = Extra Runner feature flags set on every [[runners]] entry, merged over the module's FF_USE_FLEETING_ACQUIRE_HEARTBEATS = true. See https://docs.gitlab.com/runner/configuration/feature-flags/
     enable_ssm_agent = Enable and start amazon-ssm-agent on the Runner Manager from its user data.
+    ami_id = The AMI the Runner Manager boots from, an x86_64 Amazon Linux 2 image. When null, the latest Amazon Linux 2
+      AMI at plan time, so a newer one replaces the Manager the next time its user data changes.
     metrics = Ship the Manager's metrics to a Prometheus remote-write endpoint, through a Prometheus in agent mode on
       the Manager: gitlab-runner's own (on prometheus_listen_address, or 127.0.0.1:9252 when that is empty) and each
       fleetci runner's (fleetci.metrics_listen, or a port on 127.0.0.1 from 9483 up).
@@ -106,6 +108,7 @@ variable "runner_manager" {
     prometheus_listen_address = optional(string, "")
     sentry_dsn                = optional(string, "")
     request_concurrency       = optional(number)
+    ami_id                    = optional(string)
     feature_flags             = optional(map(bool), {})
     enable_ssm_agent          = optional(bool, false)
     metrics = optional(object({

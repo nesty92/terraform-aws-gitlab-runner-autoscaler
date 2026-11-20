@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.1.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/4.0.0...4.1.0) (2026-11-20)
+
+
+### Features
+
+* runner_manager.ami_id pins the Manager's AMI ([570ba28](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/570ba2839627191eddb14108d7a4dfb94f44b328))
+
+
+### Bug Fixes
+
+* allow the ecr-login credential helper ecr_job_images names ([570ba28](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/commit/570ba2839627191eddb14108d7a4dfb94f44b328))
+
 ## [4.0.0](https://github.com/nesty92/terraform-aws-gitlab-runner-autoscaler/compare/3.10.0...4.0.0) (2026-11-19)
 
 

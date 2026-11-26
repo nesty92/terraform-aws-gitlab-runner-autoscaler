@@ -311,3 +311,29 @@ locals {
     ))
   })
 }
+
+locals {
+  # The Manager's first-boot script, with every runner's config.toml in it.
+  runner_manager_user_data = templatefile("${path.module}/templates/runner_manager_user_data.tftpl", {
+    aws_region         = data.aws_region.current.name,
+    runners_config     = local.template_runner_config
+    runners_gitlab_url = var.gitlab_instance_url
+    runner_tokens      = { for arch in var.architectures : arch => local.runner_tokens[arch] if local.runner_tokens[arch] != null }
+    runner_pools = [
+      for key in local.pool_keys : {
+        key              = key
+        token            = var.runner_pools[key].token
+        placeholder      = local.pool_token_placeholders[key]
+        on_invalid_token = var.runner_pools[key].on_invalid_token
+        config           = local.pool_runner_configs[key]
+      }
+    ]
+
+    fleetci                     = local.fleetci_manager
+    prometheus_agent            = local.prometheus_agent
+    fleeting_plugin_aws_version = var.fleeting_plugin_aws_version
+    gitlab_runner_version       = var.gitlab_runner_version
+    enable_ssm_agent            = var.runner_manager.enable_ssm_agent
+    ecr_credential_helper       = var.ecr_job_images != null
+  })
+}

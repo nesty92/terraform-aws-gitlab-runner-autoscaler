@@ -44,7 +44,7 @@ run "no_cache_by_default" {
   command = apply
 
   assert {
-    condition     = !strcontains(aws_instance.runner_manager.user_data, "[runners.cache]")
+    condition     = !strcontains(local.runner_manager_user_data, "[runners.cache]")
     error_message = "Without runner_cache the runners keep their local cache only."
   }
 
@@ -83,13 +83,13 @@ run "every_runner_shares_the_cache" {
   assert {
     condition = length(regexall(
       "\\[runners\\.cache\\]\\s+Type = \"s3\"\\s+Path = \"jobs\"\\s+Shared = true\\s+MaxUploadedArchiveSize = 2147483648\\s+\\[runners\\.cache\\.s3\\]\\s+BucketName = \"example-runner-cache\"\\s+BucketLocation = \"us-west-2\"\\s+AuthenticationType = \"iam\"\\s+DualStack = false\\s",
-      aws_instance.runner_manager.user_data,
+      local.runner_manager_user_data,
     )) == 2
     error_message = "Both the per-architecture runner and the instance pool share one S3 cache, in the module's region, signed with the Manager's role."
   }
 
   assert {
-    condition     = !strcontains(aws_instance.runner_manager.user_data, "ServerSideEncryption")
+    condition     = !strcontains(local.runner_manager_user_data, "ServerSideEncryption")
     error_message = "With no encryption asked for, the bucket's default applies."
   }
 
@@ -129,22 +129,22 @@ run "a_kms_encrypted_cache" {
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "Shared = false")
+    condition     = strcontains(local.runner_manager_user_data, "Shared = false")
     error_message = "A cache asked not to be shared is one per runner."
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "BucketLocation = \"eu-west-1\"")
+    condition     = strcontains(local.runner_manager_user_data, "BucketLocation = \"eu-west-1\"")
     error_message = "The bucket's own region wins over the module's."
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "ServerSideEncryption = \"KMS\"") && strcontains(aws_instance.runner_manager.user_data, "ServerSideEncryptionKeyID = \"arn:aws:kms:eu-west-1:111122223333:key/abc\"")
+    condition     = strcontains(local.runner_manager_user_data, "ServerSideEncryption = \"KMS\"") && strcontains(local.runner_manager_user_data, "ServerSideEncryptionKeyID = \"arn:aws:kms:eu-west-1:111122223333:key/abc\"")
     error_message = "The runner encrypts each cache with the key it is given."
   }
 
   assert {
-    condition     = !strcontains(aws_instance.runner_manager.user_data, "Path =") && !strcontains(aws_instance.runner_manager.user_data, "DualStack")
+    condition     = !strcontains(local.runner_manager_user_data, "Path =") && !strcontains(local.runner_manager_user_data, "DualStack")
     error_message = "An empty path and an unset dual_stack leave the runner's defaults."
   }
 

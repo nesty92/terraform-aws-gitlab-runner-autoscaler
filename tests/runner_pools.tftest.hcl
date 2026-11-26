@@ -49,7 +49,7 @@ run "no_pools_keeps_only_the_architecture_runners" {
   }
 
   assert {
-    condition     = !strcontains(aws_instance.runner_manager.user_data, "Runner pool")
+    condition     = !strcontains(local.runner_manager_user_data, "Runner pool")
     error_message = "With no runner_pools, the Manager's user data carries no pool."
   }
 }
@@ -127,27 +127,27 @@ run "an_instance_pool_is_single_use_root_and_has_its_own_group" {
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "executor = \"instance\"")
+    condition     = strcontains(local.runner_manager_user_data, "executor = \"instance\"")
     error_message = "The pool's runner uses the instance executor."
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "max_use_count = 1")
+    condition     = strcontains(local.runner_manager_user_data, "max_use_count = 1")
     error_message = "An instance pool is single-use by default."
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "username = \"root\"")
+    condition     = strcontains(local.runner_manager_user_data, "username = \"root\"")
     error_message = "A privileged instance pool connects as root."
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "token = \"__RUNNER_TOKEN_E2E__\"")
+    condition     = strcontains(local.runner_manager_user_data, "token = \"__RUNNER_TOKEN_E2E__\"")
     error_message = "The pool's token is a fixed placeholder in its config."
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "leaving it out of config.toml")
+    condition     = strcontains(local.runner_manager_user_data, "leaving it out of config.toml")
     error_message = "A pool skips itself on an invalid token by default."
   }
 
@@ -185,22 +185,22 @@ run "a_privileged_docker_pool_sets_privileged_and_can_fail_on_a_bad_token" {
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "privileged = true")
+    condition     = strcontains(local.runner_manager_user_data, "privileged = true")
     error_message = "A privileged docker pool runs its containers privileged."
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "allowed_privileged_images = [\"docker:29-dind\"]")
+    condition     = strcontains(local.runner_manager_user_data, "allowed_privileged_images = [\"docker:29-dind\"]")
     error_message = "The pool's docker options reach [runners.docker]."
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "max_use_count = 10")
+    condition     = strcontains(local.runner_manager_user_data, "max_use_count = 10")
     error_message = "A docker pool keeps the per-architecture reuse default."
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "Invalid token for runner pool isolated-docker\"\n    exit 1")
+    condition     = strcontains(local.runner_manager_user_data, "Invalid token for runner pool isolated-docker\"\n    exit 1")
     error_message = "on_invalid_token = fail exits the Manager's boot."
   }
 }
@@ -383,12 +383,12 @@ run "an_instance_pool_can_name_an_absolute_builds_dir" {
   }
 
   assert {
-    condition     = length(regexall("builds_dir = \"/root/builds\"", aws_instance.runner_manager.user_data)) == 1
+    condition     = length(regexall("builds_dir = \"/root/builds\"", local.runner_manager_user_data)) == 1
     error_message = "The pool's [[runners]] entry carries its builds_dir, and no other entry does."
   }
 
   assert {
-    condition     = length(regexall("cache_dir = \"/root/cache\"", aws_instance.runner_manager.user_data)) == 1
+    condition     = length(regexall("cache_dir = \"/root/cache\"", local.runner_manager_user_data)) == 1
     error_message = "The pool's [[runners]] entry carries its cache_dir beside its builds_dir."
   }
 }
@@ -412,7 +412,7 @@ run "no_builds_dir_by_default" {
   }
 
   assert {
-    condition     = !strcontains(aws_instance.runner_manager.user_data, "builds_dir") && !strcontains(aws_instance.runner_manager.user_data, "\n    cache_dir")
+    condition     = !strcontains(local.runner_manager_user_data, "builds_dir") && !strcontains(local.runner_manager_user_data, "\n    cache_dir")
     error_message = "Without builds_dir and cache_dir the runner's own defaults stay."
   }
 }

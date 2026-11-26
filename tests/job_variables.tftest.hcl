@@ -65,7 +65,7 @@ run "job_variables_reach_every_runner" {
   assert {
     condition = length(regexall(
       "environment = \\[\"CI_IMAGES=111122223333.dkr.ecr.us-west-2.amazonaws.com/ci\",\"DOCKER_HUB_CACHE=111122223333.dkr.ecr.us-west-2.amazonaws.com/docker-hub\"\\]",
-      aws_instance.runner_manager.user_data,
+      local.runner_manager_user_data,
     )) == 2
     error_message = "Both the per-architecture runner and the instance pool set the job variables, and nothing else, with no ecr_job_images."
   }
@@ -84,7 +84,7 @@ run "job_variables_follow_the_credential_helper" {
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "environment = [\"DOCKER_AUTH_CONFIG={\\\"credHelpers\\\":{\\\"111122223333.dkr.ecr.us-west-2.amazonaws.com\\\":\\\"ecr-login\\\"}}\",\"CI_IMAGES=111122223333.dkr.ecr.us-west-2.amazonaws.com/ci\"]")
+    condition     = strcontains(local.runner_manager_user_data, "environment = [\"DOCKER_AUTH_CONFIG={\\\"credHelpers\\\":{\\\"111122223333.dkr.ecr.us-west-2.amazonaws.com\\\":\\\"ecr-login\\\"}}\",\"CI_IMAGES=111122223333.dkr.ecr.us-west-2.amazonaws.com/ci\"]")
     error_message = "A docker-autoscaler runner gets the credential helper and the job variables in one environment."
   }
 }

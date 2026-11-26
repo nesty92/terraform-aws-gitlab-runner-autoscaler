@@ -49,7 +49,7 @@ run "without_fleetci_nothing_changes" {
   }
 
   assert {
-    condition     = !strcontains(aws_instance.runner_manager.user_data, "fleetci")
+    condition     = !strcontains(local.runner_manager_user_data, "fleetci")
     error_message = "Without fleetci the Manager's user data never mentions it."
   }
 
@@ -59,7 +59,7 @@ run "without_fleetci_nothing_changes" {
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "concurrent = 10")
+    condition     = strcontains(local.runner_manager_user_data, "concurrent = 10")
     error_message = "Without fleetci concurrent stays at maximum_concurrent_jobs."
   }
 }
@@ -174,17 +174,17 @@ run "fleetci_changes_only_the_pools_plugin" {
       "fleetci check -config /etc/fleetci/ci.toml",
       "ExecStart=/usr/bin/fleetci watchdog -plugin /usr/bin/fleeting-plugin-fleetci-%i",
       "systemctl enable --now fleetci-watchdog@ci",
-    ] : strcontains(aws_instance.runner_manager.user_data, s)])
+    ] : strcontains(local.runner_manager_user_data, s)])
     error_message = "The pool's runner uses fleetci's plugin, whose config, symlink, check and watchdog the Manager sets up."
   }
 
   assert {
-    condition     = !strcontains(aws_instance.runner_manager.user_data, "runner-fleetci") && !strcontains(aws_instance.runner_manager.user_data, "fleeting-plugin-aws\"\n  [runners.autoscaler.plugin_config]\n    name = \"gitlab-runner-ci-asg\"")
+    condition     = !strcontains(local.runner_manager_user_data, "runner-fleetci") && !strcontains(local.runner_manager_user_data, "fleeting-plugin-aws\"\n  [runners.autoscaler.plugin_config]\n    name = \"gitlab-runner-ci-asg\"")
     error_message = "There is no separate fleetci runner, and the pool's runner no longer drives its group with fleeting-plugin-aws."
   }
 
   assert {
-    condition     = length(aws_instance.runner_manager.user_data) < 16384
+    condition     = length(local.runner_manager_user_data) < 16384
     error_message = "EC2 refuses user data over 16 KB."
   }
 
@@ -248,17 +248,17 @@ run "reuse_for_gitlab_and_github_in_another_pool" {
       "config_file = \"/etc/fleetci/single.toml\"",
       "token_file = \"/etc/fleetci/single-github.token\"",
       "systemctl enable --now fleetci-watchdog@single",
-    ] : strcontains(aws_instance.runner_manager.user_data, s)])
+    ] : strcontains(local.runner_manager_user_data, s)])
     error_message = "Each pool runs its own fleetci; the GitLab-only one keeps reusing VMs."
   }
 
   assert {
-    condition     = !strcontains(aws_instance.runner_manager.user_data, "fleetci-watchdog@reuse") && !strcontains(aws_instance.runner_manager.user_data, "reuse-github.token")
+    condition     = !strcontains(local.runner_manager_user_data, "fleetci-watchdog@reuse") && !strcontains(local.runner_manager_user_data, "reuse-github.token")
     error_message = "watchdog = false and no github leave those out for that pool."
   }
 
   assert {
-    condition     = length(aws_instance.runner_manager.user_data) < 16384
+    condition     = length(local.runner_manager_user_data) < 16384
     error_message = "EC2 refuses user data over 16 KB, with two fleetci runners too."
   }
 }
@@ -441,17 +441,17 @@ run "fleetci_on_the_main_runner" {
       "token_file = \"/etc/fleetci/amd64-github.token\"",
       "fleetci check -config /etc/fleetci/amd64.toml",
       "systemctl enable --now fleetci-watchdog@amd64",
-    ] : strcontains(aws_instance.runner_manager.user_data, s)])
+    ] : strcontains(local.runner_manager_user_data, s)])
     error_message = "runner-amd64 keeps its token and docker options and gets its VMs through fleetci."
   }
 
   assert {
-    condition     = !strcontains(aws_instance.runner_manager.user_data, "plugin = \"fleeting-plugin-aws\"")
+    condition     = !strcontains(local.runner_manager_user_data, "plugin = \"fleeting-plugin-aws\"")
     error_message = "No runner drives a group with fleeting-plugin-aws itself any more."
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "cat > /etc/gitlab-runner/config.toml <<- 'EOF'")
+    condition     = strcontains(local.runner_manager_user_data, "cat > /etc/gitlab-runner/config.toml <<- 'EOF'")
     error_message = "config.toml goes through a quoted heredoc, so the shell keeps the job's class in the vm_isolation image."
   }
 
@@ -469,7 +469,7 @@ run "the_main_runner_reuses_vms_for_gitlab" {
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "max_use_count = 10") && strcontains(aws_instance.runner_manager.user_data, "capacity_per_instance = 2")
+    condition     = strcontains(local.runner_manager_user_data, "max_use_count = 10") && strcontains(local.runner_manager_user_data, "capacity_per_instance = 2")
     error_message = "runner-amd64's class keeps docker-autoscaler's reuse (10 jobs per VM) and its 2 VMs."
   }
 }

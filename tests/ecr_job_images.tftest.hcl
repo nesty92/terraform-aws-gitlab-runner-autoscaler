@@ -44,7 +44,7 @@ run "without_ecr_job_images_nothing_changes" {
   command = apply
 
   assert {
-    condition     = !strcontains(aws_instance.runner_manager.user_data, "ecr-login")
+    condition     = !strcontains(local.runner_manager_user_data, "ecr-login")
     error_message = "Without ecr_job_images, the Manager neither installs the ECR credential helper nor points a runner at it."
   }
 
@@ -77,27 +77,27 @@ run "ecr_job_images_signs_pulls_with_the_managers_role" {
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "amazon-ecr-credential-helper")
+    condition     = strcontains(local.runner_manager_user_data, "amazon-ecr-credential-helper")
     error_message = "The Manager installs the ECR credential helper."
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "environment = [\"DOCKER_AUTH_CONFIG={\\\"credHelpers\\\":{\\\"111122223333.dkr.ecr.us-west-2.amazonaws.com\\\":\\\"ecr-login\\\"}}\"]")
+    condition     = strcontains(local.runner_manager_user_data, "environment = [\"DOCKER_AUTH_CONFIG={\\\"credHelpers\\\":{\\\"111122223333.dkr.ecr.us-west-2.amazonaws.com\\\":\\\"ecr-login\\\"}}\"]")
     error_message = "The per-architecture runner resolves this account's ECR registry through the credential helper."
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "[runners.allowed_docker_credential_helpers]\n      \"ecr-login\" = [\"111122223333.dkr.ecr.us-west-2.amazonaws.com\"]")
+    condition     = strcontains(local.runner_manager_user_data, "[runners.allowed_docker_credential_helpers]\n      \"ecr-login\" = [\"111122223333.dkr.ecr.us-west-2.amazonaws.com\"]")
     error_message = "The runner allows the ecr-login helper its DOCKER_AUTH_CONFIG names, for this account's registry only."
   }
 
   assert {
-    condition     = length(regexall("allowed_docker_credential_helpers", aws_instance.runner_manager.user_data)) == 1
+    condition     = length(regexall("allowed_docker_credential_helpers", local.runner_manager_user_data)) == 1
     error_message = "Only the docker-autoscaler runner, which carries DOCKER_AUTH_CONFIG, gets the allowlist."
   }
 
   assert {
-    condition     = length(regexall("DOCKER_AUTH_CONFIG", aws_instance.runner_manager.user_data)) == 1
+    condition     = length(regexall("DOCKER_AUTH_CONFIG", local.runner_manager_user_data)) == 1
     error_message = "An instance pool pulls no job images, so only the docker-autoscaler runner gets the setting."
   }
 

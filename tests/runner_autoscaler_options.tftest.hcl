@@ -53,7 +53,7 @@ run "partial_options_keep_the_documented_defaults" {
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "capacity_per_instance = 1\n      max_instances = 2\n      max_use_count = 1\n")
+    condition     = strcontains(local.runner_manager_user_data, "capacity_per_instance = 1\n      max_instances = 2\n      max_use_count = 1\n")
     error_message = "The runner gets the given max_use_count and the defaults for the rest."
   }
 }
@@ -66,7 +66,7 @@ run "omitted_max_use_count_is_10_not_unlimited" {
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "max_instances = 5\n      max_use_count = 10\n")
+    condition     = strcontains(local.runner_manager_user_data, "max_instances = 5\n      max_use_count = 10\n")
     error_message = "An omitted max_use_count is the documented 10, not gitlab-runner's unlimited."
   }
 }

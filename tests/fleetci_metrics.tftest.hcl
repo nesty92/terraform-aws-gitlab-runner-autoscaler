@@ -66,7 +66,7 @@ run "an_unnamed_class_is_named_after_its_size" {
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "default_class = \"4vcpu-8gb\"")
+    condition     = strcontains(local.runner_manager_user_data, "default_class = \"4vcpu-8gb\"")
     error_message = "fleetci.toml names the derived class as the default."
   }
 }
@@ -124,17 +124,17 @@ run "without_metrics_fleetci_serves_none_and_nothing_ships" {
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "usage_file = \"/var/lib/fleetci/amd64/usage.jsonl\"")
+    condition     = strcontains(local.runner_manager_user_data, "usage_file = \"/var/lib/fleetci/amd64/usage.jsonl\"")
     error_message = "Every fleetci runner keeps its jobs' usage in a file of its own."
   }
 
   assert {
-    condition     = !strcontains(aws_instance.runner_manager.user_data, "metrics_listen") && !strcontains(aws_instance.runner_manager.user_data, "prometheus")
+    condition     = !strcontains(local.runner_manager_user_data, "metrics_listen") && !strcontains(local.runner_manager_user_data, "prometheus")
     error_message = "Without runner_manager.metrics, fleetci serves no metrics and no Prometheus is installed."
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "listen_address = \"\"")
+    condition     = strcontains(local.runner_manager_user_data, "listen_address = \"\"")
     error_message = "gitlab-runner's listen address stays as set."
   }
 
@@ -144,7 +144,7 @@ run "without_metrics_fleetci_serves_none_and_nothing_ships" {
   }
 
   assert {
-    condition     = !strcontains(aws_instance.runner_manager.user_data, ".reclaim]")
+    condition     = !strcontains(local.runner_manager_user_data, ".reclaim]")
     error_message = "fleetci's own reclaim defaults are left alone."
   }
 }
@@ -167,7 +167,7 @@ run "metrics_ship_gitlab_runner_and_fleetci_to_amp" {
   }
 
   assert {
-    condition     = strcontains(aws_instance.runner_manager.user_data, "metrics_listen = \"127.0.0.1:9483\"") && strcontains(aws_instance.runner_manager.user_data, "listen_address = \"127.0.0.1:9252\"")
+    condition     = strcontains(local.runner_manager_user_data, "metrics_listen = \"127.0.0.1:9483\"") && strcontains(local.runner_manager_user_data, "listen_address = \"127.0.0.1:9252\"")
     error_message = "fleetci and gitlab-runner serve their metrics on 127.0.0.1."
   }
 
@@ -177,7 +177,7 @@ run "metrics_ship_gitlab_runner_and_fleetci_to_amp" {
       "sha256sum -c",
       "--agent",
       "systemctl enable --now prometheus-agent",
-    ] : strcontains(aws_instance.runner_manager.user_data, s)])
+    ] : strcontains(local.runner_manager_user_data, s)])
     error_message = "The Manager installs a checked Prometheus release and runs it in agent mode."
   }
 
@@ -240,7 +240,7 @@ run "reclaim_settings_reach_every_class" {
 
   assert {
     condition = alltrue([for c in ["4vcpu-8gb", "8vcpu-16gb"] :
-      strcontains(aws_instance.runner_manager.user_data, "[classes.${c}.reclaim]\nwatch = true\nrebalance = true")
+      strcontains(local.runner_manager_user_data, "[classes.${c}.reclaim]\nwatch = true\nrebalance = true")
     ])
     error_message = "reclaim is written for each of the runner's classes."
   }
